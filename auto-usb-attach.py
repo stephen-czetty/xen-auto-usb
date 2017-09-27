@@ -10,8 +10,12 @@ def find_devices_from_root(context, dev):
     return iter(set(real_devices))
 
 def attach_device_to_xen(dev, domain):
-    print("/usr/sbin/xl usbdev-attach {0} hostbus={1} hostdev={2}"
-        .format(domain, dev.properties['BUSNUM'], dev.properties['DEVNUM']))
+    args = ["/usr/sbin/xl",
+            "usbdev-attach",
+            domain,
+            "hostbus={0}".format(dev.properties['BUSNUM']),
+            "hostdev={0}".format(dev.properties['DEVNUM'])]
+    print(" ".join(args))
 
 context = Context()
 devs = [Devices.from_path(context, '/sys/bus/usb/devices/usb3'),
