@@ -1,5 +1,12 @@
 #!/usr/bin/env /usr/bin/python3
 
+# xenstore paths of interest:
+# /local/domain/* -- List of running domains (0, 1, etc.)
+# /local/domain/*/name -- Names of the domains
+# /libxl/*/device/vusb/* -- Virtual USB controllers
+# /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
+
+
 from pyudev import Context, Devices, Monitor
 
 
