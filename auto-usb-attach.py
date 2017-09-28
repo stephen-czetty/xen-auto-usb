@@ -47,7 +47,10 @@ def find_device_mapping(domain_id, sys_name):
                 device = device.decode("utf-8")
                 d_path = "{0}/{1}".format(c_path, device)
                 if (c[bytes(d_path, "utf-8")].decode("utf-8") == sys_name):
-                    print("Controller {0}, Device {1}".format(controller, device))
+                    print("Controller {0}, Device {1}"
+                            .format(controller, device))
+                    return [controller, device]
+    return None
 
 def get_device(context, name):
     return Devices.from_path(context, "{0}/{1}".format(sysfs_root, name))
@@ -62,8 +65,9 @@ devs = [get_device(context, "usb3"), get_device(context, "usb4")]
 for dev in devs:
     for usbdev in find_devices_from_root(context, dev):
         print("Found at startup: {0.device_path}".format(usbdev))
-        attach_device_to_xen(usbdev, vm_name)
-        find_device_mapping(domain_id, usbdev.sys_name)
+        if (find_device_mapping(domain_id, usbdev.sys_name) == None):
+            attach_device_to_xen(usbdev, vm_name)
+            find_device_mapping(domain_id, usbdev.sys_name)
 
 monitor = Monitor.from_netlink(context)
 monitor.filter_by('usb')
