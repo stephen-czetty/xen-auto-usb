@@ -67,7 +67,8 @@ def get_device(ctx, name):
     return pyudev.Devices.from_path(ctx, "{0}/{1}".format(sysfs_root, name))
 
 
-def get_connected_devices(devices_to_monitor, device_map, domain_id):
+def get_connected_devices(devices_to_monitor, domain_id):
+    device_map = {}
     for monitored_device in devices_to_monitor:
         for device in find_devices_from_root(monitored_device):
             print("Found at startup: {0.device_path}".format(device))
@@ -76,9 +77,12 @@ def get_connected_devices(devices_to_monitor, device_map, domain_id):
                 attach_device_to_xen(device, vm_name)
                 dev_map = find_device_mapping(domain_id, device.sys_name)
             device_map[device.sys_name] = dev_map
+    return device_map
 
 
-def monitor_devices(ctx, devices_to_monitor, device_map, domain_id):
+# This method never returns unless there's an exception.  Good?  Bad?
+def monitor_devices(ctx, devices_to_monitor, known_devices, domain_id):
+    device_map = known_devices.copy()
     monitor = pyudev.Monitor.from_netlink(ctx)
     monitor.filter_by('usb')
 
@@ -92,6 +96,8 @@ def monitor_devices(ctx, devices_to_monitor, device_map, domain_id):
                     dev_map = find_device_mapping(domain_id, device.parent.sys_name)
                     device_map[device.parent.sys_name] = dev_map
 
+    return device_map
+
 
 def main():
     domain_id = find_domain_id(vm_name)
@@ -101,10 +107,8 @@ def main():
     context = pyudev.Context()
     monitored_devices = [get_device(context, "usb3"), get_device(context, "usb4")]
 
-    device_map = {}
-
     try:
-        get_connected_devices(monitored_devices, device_map, domain_id)
+        device_map = get_connected_devices(monitored_devices, domain_id)
         monitor_devices(context, monitored_devices, device_map, domain_id)
     except KeyboardInterrupt:
         pass
