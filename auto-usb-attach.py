@@ -7,8 +7,8 @@
 # /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
 
 
-from pyudev import Context, Devices, Monitor
-from pyxs import Client
+import pyudev
+import pyxs
 
 xl_path = "/usr/sbin/xl"
 vm_name = "Windows"
@@ -39,7 +39,7 @@ def attach_device_to_xen(dev, domain):
 
 
 def find_domain_id(name):
-    with Client() as c:
+    with pyxs.Client() as c:
         for domain_id in c.list(b"/local/domain"):
             path = "/local/domain/{0}/name".format(domain_id.decode("utf-8"))
             if c[bytes(path, "utf-8")].decode("utf-8") == name:
@@ -48,7 +48,7 @@ def find_domain_id(name):
 
 
 def find_device_mapping(domain_id, sys_name):
-    with Client() as c:
+    with pyxs.Client() as c:
         path = "/libxl/{0}/device/vusb".format(domain_id)
         for controller in c.list(bytes(path, "utf-8")):
             controller = controller.decode("utf-8")
@@ -64,7 +64,7 @@ def find_device_mapping(domain_id, sys_name):
 
 
 def get_device(ctx, name):
-    return Devices.from_path(ctx, "{0}/{1}".format(sysfs_root, name))
+    return pyudev.Devices.from_path(ctx, "{0}/{1}".format(sysfs_root, name))
 
 
 def get_connected_devices(devices_to_monitor, device_map, domain_id):
@@ -79,7 +79,7 @@ def get_connected_devices(devices_to_monitor, device_map, domain_id):
 
 
 def monitor_devices(ctx, devices_to_monitor, device_map, domain_id):
-    monitor = Monitor.from_netlink(ctx)
+    monitor = pyudev.Monitor.from_netlink(ctx)
     monitor.filter_by('usb')
 
     for device in iter(monitor.poll, None):
@@ -98,7 +98,7 @@ def main():
     if domain_id < 0:
         raise NameError("Could not find domain {0}".format(vm_name))
 
-    context = Context()
+    context = pyudev.Context()
     monitored_devices = [get_device(context, "usb3"), get_device(context, "usb4")]
 
     device_map = {}
