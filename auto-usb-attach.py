@@ -15,11 +15,18 @@ vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
 
 
-def find_devices_from_root(dev):
-    real_devices = (x for x in dev.children if x.sys_name.endswith(":1.0"))
-    real_devices = (x.parent for x in real_devices if x.driver != "hub")
+def is_a_device_we_care_about(devices_to_monitor, device):
+    for monitored_device in devices_to_monitor:
+        if device.device_path.startswith(monitored_device.device_path):
+            if device.sys_name.endswith(":1.0") and device.driver != "hub":
+                return True
+    return False
 
-    return iter(set(real_devices))
+
+def find_devices_from_root(root_device):
+    for d in root_device.children:
+        if is_a_device_we_care_about([root_device], d):
+            yield d.parent
 
 
 def attach_device_to_xen(dev, domain):
@@ -58,15 +65,6 @@ def find_device_mapping(domain_id, sys_name):
 
 def get_device(ctx, name):
     return Devices.from_path(ctx, "{0}/{1}".format(sysfs_root, name))
-
-
-def is_a_device_we_care_about(devices_to_monitor, device):
-    for monitored_device in devices_to_monitor:
-        if device.device_path.startswith(monitored_device.device_path):
-            if device.sys_name.endswith(":1.0"):
-                if device.driver != "hub":
-                    return True
-    return False
 
 
 def get_connected_devices(devices_to_monitor, device_map, domain_id):
