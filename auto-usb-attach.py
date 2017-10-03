@@ -62,12 +62,16 @@ if (domain_id < 0):
 context = Context()
 devs = [get_device(context, "usb3"), get_device(context, "usb4")]
 
+device_map = {}
+
 for dev in devs:
     for usbdev in find_devices_from_root(context, dev):
         print("Found at startup: {0.device_path}".format(usbdev))
-        if (find_device_mapping(domain_id, usbdev.sys_name) == None):
+        dev_map = find_device_mapping(domain_id, usbdev.sys_name)
+        if (dev_map == None):
             attach_device_to_xen(usbdev, vm_name)
-            find_device_mapping(domain_id, usbdev.sys_name)
+            dev_map = find_device_mapping(domain_id, usbdev.sys_name)
+        device_map[usbdev.sys_name] = dev_map
 
 monitor = Monitor.from_netlink(context)
 monitor.filter_by('usb')
@@ -80,8 +84,11 @@ try:
                 if device.device_path.startswith(dev.device_path):
                     if device.sys_name.endswith(":1.0"):
                         if device.driver != "hub":
-                            attach_device_to_xen(device.parent, vm_name)
-                            find_device_mapping(domain_id, device.parent.sys_name)
+                            if not device.parent.sys_name in device_map:
+                                print("Device added: {0}".format(device.parent))
+                                attach_device_to_xen(device.parent, vm_name)
+                                dev_map = find_device_mapping(domain_id, device.parent.sys_name)
+                                device_map[device.parent.sys_name] = dev_map
 except KeyboardInterrupt:
     pass
 
