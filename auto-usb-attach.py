@@ -92,6 +92,7 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
             return device_map
 
         print('{0.action} on {0.device_path}'.format(device))
+        # TODO: Support for device removal.
         if device.action == "add":
             if is_a_device_we_care_about(devices_to_monitor, device):
                 if device.parent.sys_name not in device_map:
