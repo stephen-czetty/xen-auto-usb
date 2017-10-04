@@ -33,8 +33,7 @@ def attach_device_to_xen(dev: pyudev.Device, domain: str) -> None:
     args = [xl_path,
             "usbdev-attach",
             domain,
-            "hostbus={0}".format(dev.properties['BUSNUM']),
-            "hostdev={0}".format(dev.properties['DEVNUM'])]
+            "hostbus={0},hostdev={1}".format(int(dev.properties['BUSNUM']), int(dev.properties['DEVNUM']))]
     print(" ".join(args))
 
 
