@@ -15,6 +15,7 @@ vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
 
 
+# TODO: This can be simplified by checking bDeviceClass != 9 for the root, instead of checking ":1.0"
 def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: pyudev.Device) -> bool:
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
@@ -33,7 +34,8 @@ def attach_device_to_xen(dev: pyudev.Device, domain: str) -> None:
     args = [xl_path,
             "usbdev-attach",
             domain,
-            "hostbus={0},hostdev={1}".format(int(dev.properties['BUSNUM']), int(dev.properties['DEVNUM']))]
+            "hostbus={0}".format(int(dev.properties['BUSNUM'])),
+            "hostaddr={0}".format(int(dev.properties['DEVNUM']))]
     print(" ".join(args))
 
 

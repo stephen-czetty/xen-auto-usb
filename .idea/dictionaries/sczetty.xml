@@ -3,6 +3,7 @@
     <words>
       <w>busnum</w>
       <w>devnum</w>
+      <w>hostaddr</w>
       <w>hostbus</w>
       <w>hostdev</w>
       <w>libxl</w>
