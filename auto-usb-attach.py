@@ -30,13 +30,38 @@ def find_devices_from_root(root_device: pyudev.Device) -> Iterable[pyudev.Device
             yield d.parent
 
 
-def attach_device_to_xen(dev: pyudev.Device, domain: str) -> None:
+# TODO: Communicate directly with qemu, but set up xenstore so xl will work from the commandline, too.
+# (see notes below, but in reverse.  See libxl__device_usbdev_add_hvm)  -- This is actually a bit more
+# complicated, since we need to select a controller and port to use, but not too bad.
+def attach_device_to_xen(dev: pyudev.Device, domain: str) -> bool:
     args = [xl_path,
             "usbdev-attach",
             domain,
             "hostbus={0}".format(int(dev.properties['BUSNUM'])),
             "hostaddr={0}".format(int(dev.properties['DEVNUM']))]
     print(" ".join(args))
+    return True
+
+
+# This method is going to take some work.  xl's tooling doesn't actually do the right thing (as of 4.8), so we'll
+# want to communicate with qemu directly.  The C++ code to do this in xl can be found at:
+# https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_usb.c;hb=HEAD
+#   (libxl__device_usbdev_del_hvm) -- We should be able to do the ad
+# https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_qmp.c;hb=HEAD
+#   (libxl__qmp_initialize, qmp_send, qmp_send_initialize)
+#
+# This stuff basically:
+# 1) connects to a socket: /run/xen/qmp-libxl-{domain_id},
+# 2) Uses the QMP protocol (https://wiki.qemu.org/Documentation/QMP) to control the VM.
+#    a) QMP is basically JSON.  It looks like we'll need to do:
+#        i)  { "execute": "qmp_capabilities" }
+#        ii) { "execute": "device_del", "arguments": { "id": "xenusb-{busnum}-{devnum}" } }"
+#            (where busnum and devnum are the *old* locations)
+# 3) Manually remove xenstore entry after this operation, if it is successful (actually, libxl removes it first,
+#    and puts the entry back if it failed) (libxl__device_usbdev_remove_xenstore)
+# 4) libxl rebinds the device to the driver, but since it has been removed, we won't need to do that.
+def detach_device_from_xen(dev: pyudev.Device, domain_id: int) -> bool:
+    return False  # TODO
 
 
 def find_domain_id(name: str) -> int:
@@ -75,9 +100,10 @@ def get_connected_devices(devices_to_monitor: List[pyudev.Device], domain_id: in
             print("Found at startup: {0.device_path}".format(device))
             dev_map = find_device_mapping(domain_id, device.sys_name)
             if dev_map is None:
-                attach_device_to_xen(device, vm_name)
-                dev_map = find_device_mapping(domain_id, device.sys_name)
-            device_map[device.sys_name] = dev_map
+                if attach_device_to_xen(device, vm_name):
+                    dev_map = find_device_mapping(domain_id, device.sys_name)
+            if dev_map is not None:
+                device_map[device.sys_name] = dev_map
     return device_map
 
 
@@ -93,14 +119,17 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
             return device_map
 
         print('{0.action} on {0.device_path}'.format(device))
-        # TODO: Support for device removal.
         if device.action == "add":
             if is_a_device_we_care_about(devices_to_monitor, device):
                 if device.parent.sys_name not in device_map:
                     print("Device added: {0}".format(device.parent))
-                    attach_device_to_xen(device.parent, vm_name)
-                    dev_map = find_device_mapping(domain_id, device.parent.sys_name)
-                    device_map[device.parent.sys_name] = dev_map
+                    if attach_device_to_xen(device.parent, vm_name):
+                        dev_map = find_device_mapping(domain_id, device.parent.sys_name)
+                        device_map[device.parent.sys_name] = dev_map
+        elif device.action == "remove" and device.parent.sys_name in device_map:
+            print("Removing device: {0}".format(device.parent))
+            if detach_device_from_xen(device.parent, domain_id):
+                del device_map[device.parent.sys_name]
 
 
 def main() -> None:

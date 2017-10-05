@@ -12,6 +12,7 @@
       <w>usbdev</w>
       <w>vusb</w>
       <w>xenstore</w>
+      <w>xenusb</w>
     </words>
   </dictionary>
 </component>
