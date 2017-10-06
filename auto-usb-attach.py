@@ -21,7 +21,8 @@ sysfs_root = "/sys/bus/usb/devices"
 def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: pyudev.Device) -> bool:
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
-            if device.sys_name.endswith(":1.0") and device.driver != "hub":
+            # if device.sys_name.endswith(":1.0") and device.driver != "hub":
+            if ":" not in device.sys_name and device.properties["BDEVICECLASS"] != "9":
                 return True
     return False
 
@@ -29,7 +30,23 @@ def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: p
 def find_devices_from_root(root_device: pyudev.Device) -> Iterable[pyudev.Device]:
     for d in root_device.children:
         if is_a_device_we_care_about([root_device], d):
-            yield d.parent
+            yield d
+
+
+def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
+        qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
+        qmp_file = qmp_socket.makefile()
+        print(qmp_file.readline())
+        qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
+        print(qmp_file.readline())
+        argument_str = "{{{0}}}".format(
+            ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items()))
+        command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
+        qmp_socket.send(bytes(command_str, "ascii"))
+        result = qmp_file.readline()
+        print(result)
+        return "error" not in result
 
 
 # TODO: Communicate directly with qemu, but set up xenstore so xl will work from the commandline, too.
@@ -43,21 +60,6 @@ def attach_device_to_xen(dev: pyudev.Device, domain: str) -> bool:
             "hostaddr={0}".format(int(dev.properties['DEVNUM']))]
     print(" ".join(args))
     return True
-
-
-def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
-        qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
-        qmp_file = qmp_socket.makefile()
-        print(qmp_file.readline())
-        qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
-        print(qmp_file.readline())
-        argument_str = "{{{0}}}".format(", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items()))
-        command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
-        qmp_socket.send(bytes(command_str, "ascii"))
-        result = qmp_file.readline()
-        print(result)
-        return "error" not in result
 
 
 # This method is going to take some work.  xl's tooling doesn't actually do the right thing (as of 4.8), so we'll
@@ -151,13 +153,13 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
         print(device_map)
         if device.action == "add":
             if is_a_device_we_care_about(devices_to_monitor, device):
-                if device.parent.sys_name not in device_map:
-                    print("Device added: {0}".format(device.parent))
-                    if attach_device_to_xen(device.parent, vm_name):
-                        dev_map = find_device_mapping(domain_id, device.parent.sys_name)
-                        device_map[device.parent.sys_name] = dev_map + \
-                                                             (int(device.parent.properties['BUSNUM']),
-                                                              int(device.parent.properties['DEVNUM']))
+                if device.sys_name not in device_map:
+                    print("Device added: {0}".format(device))
+                    if attach_device_to_xen(device, vm_name):
+                        dev_map = find_device_mapping(domain_id, device.sys_name)
+                        device_map[device.sys_name] = dev_map + \
+                                                             (int(device.properties['BUSNUM']),
+                                                              int(device.properties['DEVNUM']))
         elif device.action == "remove" and device.sys_name in device_map:
             print("Removing device: {0}".format(device))
             if detach_device_from_xen(domain_id, device_map[device.sys_name]):
