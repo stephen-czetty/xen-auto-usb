@@ -78,7 +78,7 @@ def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) ->
 def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, int]) -> bool:
     if len(device_mapping) > 2:
         # Remove the mapping from qemu
-        send_qmp_command(domain_id, "device_del", {id: "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])})
+        send_qmp_command(domain_id, "device_del", {"id": "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])})
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
             qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
             qmp_filereader = qmp_socket.makefile()
@@ -173,6 +173,7 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
 
 
 def main() -> None:
+    send_qmp_command(1, "test", {"id": "1", "foo": "bar", "bar": "baz"})
     domain_id = find_domain_id(vm_name)
     if domain_id < 0:
         raise NameError("Could not find domain {0}".format(vm_name))
