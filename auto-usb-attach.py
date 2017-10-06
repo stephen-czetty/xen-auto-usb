@@ -1,6 +1,6 @@
 #!/usr/bin/env /usr/bin/python3.6
 
-# TODO: Store state somewhere in /run, so the script can recover after a crash.
+# TODO: Store state in xenstore, so we can recover from a crash.
 # xenstore paths of interest:
 # /local/domain/* -- List of running domains (0, 1, etc.)
 # /local/domain/*/name -- Names of the domains
@@ -52,10 +52,12 @@ def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) ->
         print(qmp_file.readline())
         qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
         print(qmp_file.readline())
-        argument_str = "{{{0}}}".format(", ".join(":".join(_) for _ in arguments.items()))
-        print(argument_str)
+        argument_str = "{{{0}}}".format(", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items()))
         command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
-        print(command_str)
+        qmp_socket.send(bytes(command_str, "ascii"))
+        result = qmp_file.readline()
+        print(result)
+        return "error" not in result
 
 
 # This method is going to take some work.  xl's tooling doesn't actually do the right thing (as of 4.8), so we'll
@@ -78,19 +80,9 @@ def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) ->
 def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, int]) -> bool:
     if len(device_mapping) > 2:
         # Remove the mapping from qemu
-        send_qmp_command(domain_id, "device_del", {"id": "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])})
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
-            qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
-            qmp_filereader = qmp_socket.makefile()
-            print(qmp_filereader.readline())
-            qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
-            print(qmp_filereader.readline())
-            qmp_socket.send(bytes("{{\"execute\": \"device_del\", \"arguments\": {{\"id\": \"xenusb-{0}-{1}\"}}}}"
-                                  .format(device_mapping[2], device_mapping[3]), "ascii"))
-            result = qmp_filereader.readline()
-            print(result)
-            if "error" in result:
-                return False
+        if not send_qmp_command(domain_id, "device_del",
+                                {"id": "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])}):
+            return False
 
     # TODO: What exceptions might be thrown here?
     with pyxs.Client() as c:
