@@ -165,7 +165,6 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
 
 
 def main() -> None:
-    send_qmp_command(1, "test", {"id": "1", "foo": "bar", "bar": "baz"})
     domain_id = find_domain_id(vm_name)
     if domain_id < 0:
         raise NameError("Could not find domain {0}".format(vm_name))
