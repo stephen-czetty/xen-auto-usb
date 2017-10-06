@@ -7,6 +7,7 @@
       <w>hostbus</w>
       <w>hostdev</w>
       <w>libxl</w>
+      <w>qemu</w>
       <w>sbin</w>
       <w>sysfs</w>
       <w>usbdev</w>

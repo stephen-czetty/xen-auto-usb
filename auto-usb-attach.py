@@ -45,6 +45,19 @@ def attach_device_to_xen(dev: pyudev.Device, domain: str) -> bool:
     return True
 
 
+def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
+        qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
+        qmp_file = qmp_socket.makefile()
+        print(qmp_file.readline())
+        qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
+        print(qmp_file.readline())
+        argument_str = "{{{0}}}".format(", ".join(":".join(_) for _ in arguments.items()))
+        print(argument_str)
+        command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
+        print(command_str)
+
+
 # This method is going to take some work.  xl's tooling doesn't actually do the right thing (as of 4.8), so we'll
 # want to communicate with qemu directly.  The C++ code to do this in xl can be found at:
 # https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_usb.c;hb=HEAD
@@ -62,9 +75,10 @@ def attach_device_to_xen(dev: pyudev.Device, domain: str) -> bool:
 # 3) Manually remove xenstore entry after this operation, if it is successful (actually, libxl removes it first,
 #    and puts the entry back if it failed) (libxl__device_usbdev_remove_xenstore)
 # 4) libxl rebinds the device to the driver, but since it has been removed, we won't need to do that.
-def detach_device_from_xen(dev: pyudev.Device, domain_id: int, device_mapping: Tuple[int, int, int, int]) -> bool:
+def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, int]) -> bool:
     if len(device_mapping) > 2:
         # Remove the mapping from qemu
+        send_qmp_command(domain_id, "device_del", {id: "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])})
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
             qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
             qmp_filereader = qmp_socket.makefile()
@@ -72,7 +86,7 @@ def detach_device_from_xen(dev: pyudev.Device, domain_id: int, device_mapping: T
             qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
             print(qmp_filereader.readline())
             qmp_socket.send(bytes("{{\"execute\": \"device_del\", \"arguments\": {{\"id\": \"xenusb-{0}-{1}\"}}}}"
-                .format(device_mapping[2], device_mapping[3]), "ascii"))
+                                  .format(device_mapping[2], device_mapping[3]), "ascii"))
             result = qmp_filereader.readline()
             print(result)
             if "error" in result:
@@ -109,7 +123,7 @@ def find_device_mapping(domain_id: int, sys_name: str) -> Optional[Tuple[int, in
                     print("Controller {0}, Device {1}"
                           .format(controller, device))
                     return controller, device
-    return (-1, -1) # None
+    return (-1, -1)  # None
 
 
 def get_device(ctx: pyudev.Context, name: str) -> pyudev.Device:
@@ -149,11 +163,12 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
                     print("Device added: {0}".format(device.parent))
                     if attach_device_to_xen(device.parent, vm_name):
                         dev_map = find_device_mapping(domain_id, device.parent.sys_name)
-                        device_map[device.parent.sys_name] = dev_map +\
-                            (int(device.parent.properties['BUSNUM']), int(device.parent.properties['DEVNUM']))
+                        device_map[device.parent.sys_name] = dev_map + \
+                                                             (int(device.parent.properties['BUSNUM']),
+                                                              int(device.parent.properties['DEVNUM']))
         elif device.action == "remove" and device.sys_name in device_map:
             print("Removing device: {0}".format(device))
-            if detach_device_from_xen(device, domain_id, device_map[device.sys_name]):
+            if detach_device_from_xen(domain_id, device_map[device.sys_name]):
                 del device_map[device.sys_name]
 
 
