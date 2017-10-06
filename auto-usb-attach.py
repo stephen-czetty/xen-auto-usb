@@ -17,13 +17,12 @@ vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
 
 
-# TODO: This can be simplified by checking bDeviceClass != 9 for the root, instead of checking ":1.0"
 def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: pyudev.Device) -> bool:
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
             # if device.sys_name.endswith(":1.0") and device.driver != "hub":
-            if ":" not in device.sys_name and device.properties["BDEVICECLASS"] != "9":
-                return True
+            return ":" not in device.sys_name and int(device.attributes.get("bDeviceClass")) != 9
+
     return False
 
 
