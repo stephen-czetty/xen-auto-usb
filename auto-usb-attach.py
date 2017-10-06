@@ -21,7 +21,7 @@ def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: p
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
             return "bDeviceClass" in device.attributes.available_attributes \
-                   and device.attributes.asint("bDeviceClass") != 9
+                   and int(device.attributes.get("bDeviceClass"), 16) != 9
 
     return False
 
