@@ -39,9 +39,9 @@ def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) ->
         print(qmp_file.readline())
         qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
         print(qmp_file.readline())
-        argument_str = "{{{0}}}".format(
-            ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items()))
+        argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
         command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
+        print(command_str)
         qmp_socket.send(bytes(command_str, "ascii"))
         result = qmp_file.readline()
         print(result)
@@ -68,7 +68,7 @@ def attach_device_to_xen(dev: pyudev.Device, domain_id: int) -> Optional[Tuple[i
     devnum = int(dev.properties['DEVNUM'])
     args = [xl_path,
             "usbdev-attach",
-            domain_id,
+            str(domain_id),
             "hostbus={0}".format(busnum),
             "hostaddr={0}".format(devnum)]
     print(" ".join(args))
@@ -80,7 +80,7 @@ def attach_device_to_xen(dev: pyudev.Device, domain_id: int) -> Optional[Tuple[i
     try:
         with pyxs.Client() as c:
             path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
-            c[bytes(path, "utf-8")] = dev.sys_name
+            c[bytes(path, "utf-8")] = bytes(dev.sys_name, "ascii")
     except pyxs.PyXSError as e:
         print(e)
         return None
@@ -98,7 +98,7 @@ def attach_device_to_xen(dev: pyudev.Device, domain_id: int) -> Optional[Tuple[i
         try:
             with pyxs.Client() as c:
                 path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
-                c[bytes(path, "utf-8")] = ""
+                c[bytes(path, "utf-8")] = b"\0"
         except pyxs.PyXSError as e:
             print(e)
         return None
@@ -138,7 +138,7 @@ def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, 
         with pyxs.Client() as c:
             # Clear xl's xenstore entry for the device.
             path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, device_mapping[0], device_mapping[1])
-            c[bytes(path, "utf-8")] = ""
+            c[bytes(path, "utf-8")] = b"\0"
     except pyxs.PyXSError as e:
         print(e)
         return False
