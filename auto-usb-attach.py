@@ -10,6 +10,10 @@ from typing import List, Tuple, Optional, Dict, Iterable, cast
 import socket
 
 import pyudev
+# IMPORTANT NOTE: There is a bug in the latest version of pyxs.
+# There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
+# In the meantime, I've just made the appropriate change in my local
+# installation.
 import pyxs
 
 xl_path = "/usr/sbin/xl"
@@ -77,31 +81,30 @@ def attach_device_to_xen(dev: pyudev.Device, domain_id: int) -> Optional[Tuple[i
     controller, port = find_next_open_controller_and_port(domain_id)
 
     # Add the entry to xenstore
-    try:
-        with pyxs.Client() as c:
+    with pyxs.Client() as c:
+        try:
+            txn_id = c.transaction()
             path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
             c[bytes(path, "utf-8")] = bytes(dev.sys_name, "ascii")
-    except pyxs.PyXSError as e:
-        print(e)
-        return None
 
-    # Attach the device to qemu
-    if not send_qmp_command(domain_id, "device_add",
-                            {"id": "xenusb-{0}-{1}".format(busnum, devnum),
-                             "driver": "usb-host",
-                             "bus": "xenusb-{0}.0".format(controller),
-                             "port": "{0}".format(port),
-                             "hostbus": "{0}".format(busnum),
-                             "hostaddr": "{0}".format(devnum)}):
-        # Reset the xenstore data
-        # Add the entry to xenstore
-        try:
-            with pyxs.Client() as c:
-                path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
-                c[bytes(path, "utf-8")] = b"\0"
+        # Attach the device to qemu
+            if not send_qmp_command(domain_id, "device_add",
+                                    {"id": "xenusb-{0}-{1}".format(busnum, devnum),
+                                     "driver": "usb-host",
+                                     "bus": "xenusb-{0}.0".format(controller),
+                                     "port": "{0}".format(port),
+                                     "hostbus": "{0}".format(busnum),
+                                     "hostaddr": "{0}".format(devnum)}):
+                # Reset the xenstore data
+                c.rollback()
+                txn_id = None
         except pyxs.PyXSError as e:
+            if txn_id is not None:
+                c.rollback()
             print(e)
-        return None
+            return None
+
+        c.commit()
 
     return controller, port, busnum, devnum
 
@@ -138,7 +141,7 @@ def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, 
         with pyxs.Client() as c:
             # Clear xl's xenstore entry for the device.
             path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, device_mapping[0], device_mapping[1])
-            c[bytes(path, "utf-8")] = b"\0"
+            c[bytes(path, "utf-8")] = b""
     except pyxs.PyXSError as e:
         print(e)
         return False
