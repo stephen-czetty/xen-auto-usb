@@ -45,7 +45,7 @@ def get_xs_value(xs_client, xs_path):
 
 
 def set_xs_value(xs_client, xs_path, xs_value):
-    xs_client[bytes(xs_path, "ascii")] = bytes(xs_value("ascii"))
+    xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
 
 def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
