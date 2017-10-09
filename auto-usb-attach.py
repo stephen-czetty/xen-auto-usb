@@ -36,6 +36,18 @@ def find_devices_from_root(root_device: pyudev.Device) -> Iterable[pyudev.Device
             yield d
 
 
+def get_xs_list(xs_client, xs_path):
+    return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
+
+
+def get_xs_value(xs_client, xs_path):
+    return xs_client[bytes(xs_path, "ascii")].decode("ascii")
+
+
+def set_xs_value(xs_client, xs_path, xs_value):
+    xs_client[bytes(xs_path, "ascii")] = bytes(xs_value("ascii"))
+
+
 def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
         qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
@@ -55,56 +67,55 @@ def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) ->
 def find_next_open_controller_and_port(domain_id: int) -> Tuple[int, int]:
     with pyxs.Client() as c:
         path = "/libxl/{0}/device/vusb".format(domain_id)
-        for controller in c.list(bytes(path, "utf-8")):
-            controller = controller.decode("utf-8")
+        for controller in get_xs_list(c, path):
             c_path = "{0}/{1}/port".format(path, controller)
-            for port in c.list(bytes(c_path, "utf-8")):
-                port = port.decode("utf-8")
+            for port in get_xs_list(c, c_path):
                 d_path = "{0}/{1}".format(c_path, port)
-                if c[bytes(d_path, "utf-8")].decode("utf-8") == "":
+                if get_xs_value(c, d_path) == "":
                     print("Choosing Controller {0}, Slot {1}"
                           .format(controller, port))
                     return int(controller), int(port)
 
 
-def attach_device_to_xen(dev: pyudev.Device, domain_id: int) -> Optional[Tuple[int, int, int, int]]:
-    busnum = int(dev.properties['BUSNUM'])
-    devnum = int(dev.properties['DEVNUM'])
-    args = [xl_path,
-            "usbdev-attach",
-            str(domain_id),
-            "hostbus={0}".format(busnum),
-            "hostaddr={0}".format(devnum)]
-    print(" ".join(args))
-
-    # Find an open controller and slot
-    controller, port = find_next_open_controller_and_port(domain_id)
-
-    # Add the entry to xenstore
+def set_xenstore_and_send_qmp_command(domain_id: int, xs_path: str, xs_value: str, qmp_command: str,
+                                      qmp_arguments: Dict[str, str]) -> bool:
     with pyxs.Client() as c:
+        txn_id = c.transaction()
         try:
-            txn_id = c.transaction()
-            path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
-            c[bytes(path, "utf-8")] = bytes(dev.sys_name, "ascii")
+            set_xs_value(c, xs_path, xs_value)
 
-        # Attach the device to qemu
-            if not send_qmp_command(domain_id, "device_add",
-                                    {"id": "xenusb-{0}-{1}".format(busnum, devnum),
-                                     "driver": "usb-host",
-                                     "bus": "xenusb-{0}.0".format(controller),
-                                     "port": "{0}".format(port),
-                                     "hostbus": "{0}".format(busnum),
-                                     "hostaddr": "{0}".format(devnum)}):
-                # Reset the xenstore data
-                c.rollback()
+            if not send_qmp_command(domain_id, qmp_command, qmp_arguments):
                 txn_id = None
+                c.rollback()
+                return False
         except pyxs.PyXSError as e:
             if txn_id is not None:
                 c.rollback()
             print(e)
-            return None
+            return False
 
         c.commit()
+
+    return True
+
+
+def attach_device_to_xen(dev: pyudev.Device, domain_id: int) -> Optional[Tuple[int, int, int, int]]:
+    # Find an open controller and slot
+    controller, port = find_next_open_controller_and_port(domain_id)
+
+    # Add the entry to xenstore
+    path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
+    busnum = int(dev.properties['BUSNUM'])
+    devnum = int(dev.properties['DEVNUM'])
+
+    if not set_xenstore_and_send_qmp_command(domain_id, path, dev.sys_name, "device_add",
+                                             {"id": "xenusb-{0}-{1}".format(busnum, devnum),
+                                              "driver": "usb-host",
+                                              "bus": "xenusb-{0}.0".format(controller),
+                                              "port": "{0}".format(port),
+                                              "hostbus": "{0}".format(busnum),
+                                              "hostaddr": "{0}".format(devnum)}):
+        return None
 
     return controller, port, busnum, devnum
 
@@ -132,42 +143,28 @@ def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, 
         # TODO: This is technically a bug, but will require some xenstore trickery to get right.
         return False
 
-    # Remove the mapping from qemu
-    if not send_qmp_command(domain_id, "device_del",
-                            {"id": "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])}):
-        return False
-
-    try:
-        with pyxs.Client() as c:
-            # Clear xl's xenstore entry for the device.
-            path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, device_mapping[0], device_mapping[1])
-            c[bytes(path, "utf-8")] = b""
-    except pyxs.PyXSError as e:
-        print(e)
-        return False
-
-    return True
+    path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, device_mapping[0], device_mapping[1])
+    return set_xenstore_and_send_qmp_command(domain_id, path, "", "device_del",
+                                             {"id": "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])})
 
 
 def find_domain_id(name: str) -> int:
     with pyxs.Client() as c:
-        for domain_id in c.list(b"/local/domain"):
-            path = "/local/domain/{0}/name".format(domain_id.decode("utf-8"))
-            if c[bytes(path, "utf-8")].decode("utf-8") == name:
-                return int(domain_id.decode("utf-8"))
+        for domain_id in get_xs_list(c, "/local/domain"):
+            path = "/local/domain/{0}/name".format(domain_id)
+            if get_xs_value(c, path) == name:
+                return int(domain_id)
         return -1
 
 
 def find_device_mapping(domain_id: int, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
     with pyxs.Client() as c:
         path = "/libxl/{0}/device/vusb".format(domain_id)
-        for controller in c.list(bytes(path, "utf-8")):
-            controller = controller.decode("utf-8")
+        for controller in get_xs_list(c, path):
             c_path = "{0}/{1}/port".format(path, controller)
-            for device in c.list(bytes(c_path, "utf-8")):
-                device = device.decode("utf-8")
+            for device in get_xs_list(c, c_path):
                 d_path = "{0}/{1}".format(c_path, device)
-                if c[bytes(d_path, "utf-8")].decode("utf-8") == sys_name:
+                if get_xs_value(c, d_path) == sys_name:
                     print("Controller {0}, Device {1}"
                           .format(controller, device))
                     return controller, device, -1, -1
@@ -178,8 +175,8 @@ def get_device(ctx: pyudev.Context, name: str) -> pyudev.Device:
     return pyudev.Devices.from_path(ctx, "{0}/{1}".format(sysfs_root, name))
 
 
-def get_connected_devices(devices_to_monitor: List[pyudev.Device], domain_id: int)\
-            -> Dict[str, Tuple[int, int, int, int]]:
+def get_connected_devices(devices_to_monitor: List[pyudev.Device], domain_id: int) \
+        -> Dict[str, Tuple[int, int, int, int]]:
     device_map = {}
     for monitored_device in devices_to_monitor:
         for device in find_devices_from_root(monitored_device):
@@ -194,8 +191,8 @@ def get_connected_devices(devices_to_monitor: List[pyudev.Device], domain_id: in
 
 # This method never returns unless there's an exception.  Good?  Bad?
 def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device],
-                    known_devices: Dict[str, Tuple[int, int, int, int]], domain_id: int)\
-            -> Dict[str, Tuple[int, int, int, int]]:
+                    known_devices: Dict[str, Tuple[int, int, int, int]], domain_id: int) \
+        -> Dict[str, Tuple[int, int, int, int]]:
     device_map = known_devices.copy()
     monitor = pyudev.Monitor.from_netlink(ctx)
     monitor.filter_by('usb')
