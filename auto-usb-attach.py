@@ -1,8 +1,10 @@
 #!/usr/bin/env /usr/bin/python3.6
 
 # TODO: Store state in xenstore, so we can recover from a crash.
-# TODO: Gracefully handle situations where the VM is not running
-# TODO: Graecfully handle VM shutdown
+# TODO: Gracefully handle situations where the VM is not running (wait for it to come up?)
+# TODO: Gracefully handle VM shutdown
+# TODO: Support command-line options (VM Name, root devices to listen on, etc.)
+# BONUS TODO: Support multiple VMs concurrently
 
 # xenstore paths of interest:
 # /local/domain/* -- List of running domains (0, 1, etc.)
@@ -19,7 +21,6 @@ import pyudev
 # installation.
 import pyxs
 
-xl_path = "/usr/sbin/xl"
 vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
 
