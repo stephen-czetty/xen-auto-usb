@@ -25,6 +25,7 @@ import argparse
 
 vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
+options = None
 
 
 class Options:
@@ -93,10 +94,14 @@ def is_a_hub(device: pyudev.Device) -> bool:
            and int(device.attributes.get("bDeviceClass"), 16) == 9
 
 
+def is_a_root_device(device: pyudev.Device) -> bool:
+    return "bDeviceClass" in device.attributes.available_attributes
+
+
 def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: pyudev.Device) -> bool:
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
-            return not is_a_hub(device)
+            return not is_a_hub(device) and is_a_root_device(device)
 
     return False
 
@@ -288,6 +293,7 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
 
 
 def main(args: List[str]) -> None:
+    global options
     options = Options(args)
     domain_id = find_domain_id(options.domain)
     if domain_id < 0:
@@ -296,6 +302,8 @@ def main(args: List[str]) -> None:
     context = pyudev.Context()
     monitored_devices = [get_device(context, h) for h in options.hubs]
     for d in monitored_devices:
+        if not is_a_root_device(d):
+            raise RuntimeError("Device {0} is not a root device node".format(d.sys_name))
         if not is_a_hub(d):
             raise RuntimeError("Device {0} is not a hub".format(d.sys_name))
 
