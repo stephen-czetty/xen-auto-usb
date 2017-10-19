@@ -3,7 +3,7 @@
 # TODO: Store state in xenstore, so we can recover from a crash.
 # TODO: Gracefully handle situations where the VM is not running (wait for it to come up?)
 # TODO: Gracefully handle VM shutdown
-# TODO: Support command-line options (VM Name, root devices to listen on, etc.)
+# TODO: Refactor into different classes
 # BONUS TODO: Support multiple VMs concurrently
 
 # xenstore paths of interest:
@@ -11,6 +11,7 @@
 # /local/domain/*/name -- Names of the domains
 # /libxl/*/device/vusb/* -- Virtual USB controllers
 # /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
+import sys
 from typing import List, Tuple, Optional, Dict, Iterable, cast
 import socket
 
@@ -20,16 +21,82 @@ import pyudev
 # In the meantime, I've just made the appropriate change in my local
 # installation.
 import pyxs
+import argparse
 
 vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
 
 
+class Options:
+    @property
+    def is_verbose(self) -> bool:
+        return self.__verbosity > 0
+
+    @property
+    def is_very_verbose(self) -> bool:
+        return self.__verbosity > 1
+
+    @property
+    def is_quiet(self) -> bool:
+        return self.__verbosity < 0
+
+    @property
+    def domain(self) -> str:
+        return self.__domain
+
+    @property
+    def hubs(self) -> List[str]:
+        return self.__hubs
+
+    def print_very_verbose(self, string: str):
+        if self.is_very_verbose:
+            print(string)
+
+    def print_verbose(self, string: str):
+        if self.is_verbose:
+            print(string)
+
+    def print_unless_quiet(self, string: str):
+        if not self.is_quiet:
+            print(string)
+
+    @staticmethod
+    def __get_argument_parser() -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser()
+
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
+        group.add_argument("-q", "--quiet", help="be very quiet", action="store_true")
+        parser.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store", required=True)
+        parser.add_argument("-h", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")", type=str,
+                            action="append", required=True, dest="hubs")
+
+        return parser
+
+    def __init__(self, args: List[str]):
+        parser = self.__get_argument_parser()
+        parsed = parser.parse_args(args)
+        self.__verbosity = -1 if parsed.quiet else parsed.verbose
+        self.__domain = parsed.domain
+        self.__hubs = parsed.hubs
+
+        self.print_very_verbose("Command line arguments:")
+        self.print_very_verbose("Verbosity: {0}".format("Very Verbose" if self.is_very_verbose else
+                                                        "Verbose" if self.is_verbose else
+                                                        "Quiet" if self.is_quiet else "Normal"))
+        self.print_very_verbose("Domain: {0}".format(self.domain))
+        self.print_very_verbose("Hubs: {0}".format(self.hubs))
+
+
+def is_a_hub(device: pyudev.Device) -> bool:
+    return "bDeviceClass" in device.attributes.available_attributes \
+           and int(device.attributes.get("bDeviceClass"), 16) == 9
+
+
 def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: pyudev.Device) -> bool:
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
-            return "bDeviceClass" in device.attributes.available_attributes \
-                   and int(device.attributes.get("bDeviceClass"), 16) != 9
+            return not is_a_hub(device)
 
     return False
 
@@ -53,6 +120,7 @@ def set_xs_value(xs_client, xs_path, xs_value):
 
 
 def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
+    # noinspection PyUnresolvedReferences
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
         qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
         qmp_file = qmp_socket.makefile()
@@ -219,13 +287,17 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
                 del device_map[device.sys_name]
 
 
-def main() -> None:
-    domain_id = find_domain_id(vm_name)
+def main(args: List[str]) -> None:
+    options = Options(args)
+    domain_id = find_domain_id(options.domain)
     if domain_id < 0:
         raise NameError("Could not find domain {0}".format(vm_name))
 
     context = pyudev.Context()
-    monitored_devices = [get_device(context, "usb3"), get_device(context, "usb4")]
+    monitored_devices = [get_device(context, h) for h in options.hubs]
+    for d in monitored_devices:
+        if not is_a_hub(d):
+            raise RuntimeError("Device {0} is not a hub".format(d.sys_name))
 
     try:
         device_map = get_connected_devices(monitored_devices, domain_id)
@@ -234,4 +306,4 @@ def main() -> None:
         pass
 
 
-main()
+main(sys.argv[1:])
