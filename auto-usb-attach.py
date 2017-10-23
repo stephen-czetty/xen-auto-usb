@@ -3,7 +3,8 @@
 # TODO: Store state in xenstore, so we can recover from a crash.
 # TODO: Gracefully handle situations where the VM is not running (wait for it to come up?)
 # TODO: Gracefully handle VM shutdown
-# TODO: Support command-line options (VM Name, root devices to listen on, etc.)
+# TODO: Refactor into different classes
+# TODO: Run as a daemon
 # BONUS TODO: Support multiple VMs concurrently
 
 # xenstore paths of interest:
@@ -11,25 +12,99 @@
 # /local/domain/*/name -- Names of the domains
 # /libxl/*/device/vusb/* -- Virtual USB controllers
 # /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
+import sys
 from typing import List, Tuple, Optional, Dict, Iterable, cast
 import socket
 
 import pyudev
-# IMPORTANT NOTE: There is a bug in the latest version of pyxs.
-# There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
-# In the meantime, I've just made the appropriate change in my local
-# installation.
 import pyxs
+import argparse
+import re
+
+# There is a bug in the latest version of pyxs.
+# There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
+# In the meantime, this should fix it.
+pyxs.client._re_7bit_ascii = re.compile(b"^[\x00\x20-\x7f]*$")
 
 vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
+options = None
+
+
+class Options:
+    @property
+    def is_verbose(self) -> bool:
+        return self.__verbosity > 0
+
+    @property
+    def is_very_verbose(self) -> bool:
+        return self.__verbosity > 1
+
+    @property
+    def is_quiet(self) -> bool:
+        return self.__verbosity < 0
+
+    @property
+    def domain(self) -> str:
+        return self.__domain
+
+    @property
+    def hubs(self) -> List[str]:
+        return self.__hubs
+
+    def print_very_verbose(self, string: str):
+        if self.is_very_verbose:
+            print(string)
+
+    def print_verbose(self, string: str):
+        if self.is_verbose:
+            print(string)
+
+    def print_unless_quiet(self, string: str):
+        if not self.is_quiet:
+            print(string)
+
+    @staticmethod
+    def __get_argument_parser() -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser()
+
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
+        group.add_argument("-q", "--quiet", help="be very quiet", action="store_true")
+        parser.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store", required=True)
+        parser.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")", type=str,
+                            action="append", required=True)
+
+        return parser
+
+    def __init__(self, args: List[str]):
+        parser = self.__get_argument_parser()
+        parsed = parser.parse_args(args)
+        self.__verbosity = -1 if parsed.quiet else parsed.verbose
+        self.__domain = parsed.domain
+        self.__hubs = parsed.hub
+
+        self.print_very_verbose("Command line arguments:")
+        self.print_very_verbose("Verbosity: {0}".format("Very Verbose" if self.is_very_verbose else
+                                                        "Verbose" if self.is_verbose else
+                                                        "Quiet" if self.is_quiet else "Normal"))
+        self.print_very_verbose("Domain: {0}".format(self.domain))
+        self.print_very_verbose("Hubs: {0}".format(self.hubs))
+
+
+def is_a_hub(device: pyudev.Device) -> bool:
+    return "bDeviceClass" in device.attributes.available_attributes \
+           and int(device.attributes.get("bDeviceClass"), 16) == 9
+
+
+def is_a_root_device(device: pyudev.Device) -> bool:
+    return "bDeviceClass" in device.attributes.available_attributes
 
 
 def is_a_device_we_care_about(devices_to_monitor: List[pyudev.Device], device: pyudev.Device) -> bool:
     for monitored_device in devices_to_monitor:
         if device.device_path.startswith(monitored_device.device_path):
-            return "bDeviceClass" in device.attributes.available_attributes \
-                   and int(device.attributes.get("bDeviceClass"), 16) != 9
+            return not is_a_hub(device) and is_a_root_device(device)
 
     return False
 
@@ -53,18 +128,20 @@ def set_xs_value(xs_client, xs_path, xs_value):
 
 
 def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
+    # noinspection PyUnresolvedReferences
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
+        options.print_very_verbose("Connecting to QMP")
         qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
         qmp_file = qmp_socket.makefile()
-        print(qmp_file.readline())
+        options.print_very_verbose(qmp_file.readline())
         qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
-        print(qmp_file.readline())
+        options.print_very_verbose(qmp_file.readline())
         argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
         command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
-        print(command_str)
+        options.print_very_verbose(command_str)
         qmp_socket.send(bytes(command_str, "ascii"))
         result = qmp_file.readline()
-        print(result)
+        options.print_very_verbose(result)
         return "error" not in result
 
 
@@ -76,8 +153,8 @@ def find_next_open_controller_and_port(domain_id: int) -> Tuple[int, int]:
             for port in get_xs_list(c, c_path):
                 d_path = "{0}/{1}".format(c_path, port)
                 if get_xs_value(c, d_path) == "":
-                    print("Choosing Controller {0}, Slot {1}"
-                          .format(controller, port))
+                    options.print_verbose("Choosing Controller {0}, Slot {1}"
+                                          .format(controller, port))
                     return int(controller), int(port)
 
 
@@ -95,7 +172,7 @@ def set_xenstore_and_send_qmp_command(domain_id: int, xs_path: str, xs_value: st
         except pyxs.PyXSError as e:
             if txn_id is not None:
                 c.rollback()
-            print(e)
+            options.print_unless_quiet(e)
             return False
 
         c.commit()
@@ -169,8 +246,8 @@ def find_device_mapping(domain_id: int, sys_name: str) -> Optional[Tuple[int, in
             for device in get_xs_list(c, c_path):
                 d_path = "{0}/{1}".format(c_path, device)
                 if get_xs_value(c, d_path) == sys_name:
-                    print("Controller {0}, Device {1}"
-                          .format(controller, device))
+                    options.print_verbose("Controller {0}, Device {1}"
+                                          .format(controller, device))
                     return controller, device, -1, -1
     return None
 
@@ -180,11 +257,11 @@ def get_device(ctx: pyudev.Context, name: str) -> pyudev.Device:
 
 
 def get_connected_devices(devices_to_monitor: List[pyudev.Device], domain_id: int) \
-        -> Dict[str, Tuple[int, int, int, int]]:
+    -> Dict[str, Tuple[int, int, int, int]]:
     device_map = {}
     for monitored_device in devices_to_monitor:
         for device in find_devices_from_root(monitored_device):
-            print("Found at startup: {0.device_path}".format(device))
+            options.print_verbose("Found at startup: {0.device_path}".format(device))
             dev_map = find_device_mapping(domain_id, device.sys_name)
             if dev_map is None:
                 dev_map = attach_device_to_xen(device, domain_id)
@@ -205,27 +282,34 @@ def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[pyudev.Device]
         if device is None:
             return device_map
 
-        print('{0.action} on {0.device_path}'.format(device))
+        options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
         if device.action == "add":
             if is_a_device_we_care_about(devices_to_monitor, device):
                 if device.sys_name not in device_map:
-                    print("Device added: {0}".format(device))
+                    options.print_verbose("Device added: {0}".format(device))
                     dev_map = attach_device_to_xen(device, domain_id)
                     if dev_map is not None:
                         device_map[device.sys_name] = dev_map
         elif device.action == "remove" and device.sys_name in device_map:
-            print("Removing device: {0}".format(device))
+            options.print_verbose("Removing device: {0}".format(device))
             if detach_device_from_xen(domain_id, device_map[device.sys_name]):
                 del device_map[device.sys_name]
 
 
-def main() -> None:
-    domain_id = find_domain_id(vm_name)
+def main(args: List[str]) -> None:
+    global options
+    options = Options(args)
+    domain_id = find_domain_id(options.domain)
     if domain_id < 0:
         raise NameError("Could not find domain {0}".format(vm_name))
 
     context = pyudev.Context()
-    monitored_devices = [get_device(context, "usb3"), get_device(context, "usb4")]
+    monitored_devices = [get_device(context, h) for h in options.hubs]
+    for d in monitored_devices:
+        if not is_a_root_device(d):
+            raise RuntimeError("Device {0} is not a root device node".format(d.sys_name))
+        if not is_a_hub(d):
+            raise RuntimeError("Device {0} is not a hub".format(d.sys_name))
 
     try:
         device_map = get_connected_devices(monitored_devices, domain_id)
@@ -234,4 +318,4 @@ def main() -> None:
         pass
 
 
-main()
+main(sys.argv[1:])
