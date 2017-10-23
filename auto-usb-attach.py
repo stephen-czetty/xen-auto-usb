@@ -129,7 +129,7 @@ class Device:
 
     def find_devices_from_root(self) -> Iterable[pyudev.Device]:
         for d in self.__inner.children:
-            if self.is_a_device_we_care_about([self]):
+            if d.is_a_device_we_care_about([self]):
                 yield d
 
     def __init__(self, inner: pyudev.Device):
