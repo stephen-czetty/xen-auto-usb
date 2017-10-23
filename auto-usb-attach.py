@@ -4,6 +4,7 @@
 # TODO: Gracefully handle situations where the VM is not running (wait for it to come up?)
 # TODO: Gracefully handle VM shutdown
 # TODO: Refactor into different classes
+# TODO: Run as a daemon
 # BONUS TODO: Support multiple VMs concurrently
 
 # xenstore paths of interest:
