@@ -183,7 +183,7 @@ class DeviceMonitor:
                 if self.__domain.detach_device_from_xen(device_map[device.sys_name]):
                     del device_map[device.sys_name]
 
-    def __init__(self, opts: Options, xen_domain: XenDomain):
+    def __init__(self, opts: Options, xen_domain: 'XenDomain'):
         self.__context = pyudev.Context()
         self.__root_devices = [self.__get_device(x) for x in opts.hubs]
         self.__options = opts
