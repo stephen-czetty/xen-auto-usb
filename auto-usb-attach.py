@@ -17,12 +17,14 @@ from typing import List, Tuple, Optional, Dict, Iterable, cast
 import socket
 
 import pyudev
-# IMPORTANT NOTE: There is a bug in the latest version of pyxs.
-# There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
-# In the meantime, I've just made the appropriate change in my local
-# installation.
 import pyxs
 import argparse
+import re
+
+# There is a bug in the latest version of pyxs.
+# There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
+# In the meantime, this should fix it.
+pyxs.client._re_7bit_ascii = re.compile(b"^[\x00\x20-\x7f]*$")
 
 vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
