@@ -3,7 +3,6 @@
 # TODO: Store state in xenstore, so we can recover from a crash.
 # TODO: Gracefully handle situations where the VM is not running (wait for it to come up?)
 # TODO: Gracefully handle VM shutdown
-# TODO: Refactor into different classes
 # TODO: Run as a daemon
 # BONUS TODO: Support multiple VMs concurrently
 
@@ -28,7 +27,6 @@ pyxs.client._re_7bit_ascii = re.compile(b"^[\x00\x20-\x7f]*$")
 
 vm_name = "Windows"
 sysfs_root = "/sys/bus/usb/devices"
-options = None
 
 
 class Options:
@@ -148,22 +146,20 @@ class DeviceMonitor:
 
         return Device(inner)
 
-    def get_connected_devices(self, domain_id: int) \
-            -> Dict[str, Tuple[int, int, int, int]]:
+    def get_connected_devices(self) -> Dict[str, Tuple[int, int, int, int]]:
         device_map = {}
         for monitored_device in self.__root_devices:
             for device in monitored_device.devices_of_interest():
                 self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
-                dev_map = find_device_mapping(domain_id, device.sys_name)
+                dev_map = self.__domain.find_device_mapping(device.sys_name)
                 if dev_map is None:
-                    dev_map = attach_device_to_xen(device, domain_id)
+                    dev_map = self.__domain.attach_device_to_xen(device)
                 if dev_map is not None:
                     device_map[device.sys_name] = dev_map
         return device_map
 
     # This method never returns unless there's an exception.  Good?  Bad?
-    def monitor_devices(self,
-                        known_devices: Dict[str, Tuple[int, int, int, int]], domain_id: int) \
+    def monitor_devices(self, known_devices: Dict[str, Tuple[int, int, int, int]]) \
             -> Dict[str, Tuple[int, int, int, int]]:
         device_map = known_devices.copy()
         monitor = pyudev.Monitor.from_netlink(self.__context)
@@ -179,18 +175,19 @@ class DeviceMonitor:
                 if device.is_a_device_we_care_about(self.__root_devices):
                     if device.sys_name not in device_map:
                         self.__options.print_verbose("Device added: {0}".format(device))
-                        dev_map = attach_device_to_xen(device, domain_id)
+                        dev_map = self.__domain.attach_device_to_xen(device)
                         if dev_map is not None:
                             device_map[device.sys_name] = dev_map
             elif device.action == "remove" and device.sys_name in device_map:
                 self.__options.print_verbose("Removing device: {0}".format(device))
-                if detach_device_from_xen(domain_id, device_map[device.sys_name]):
+                if self.__domain.detach_device_from_xen(device_map[device.sys_name]):
                     del device_map[device.sys_name]
 
-    def __init__(self, opts: Options):
+    def __init__(self, opts: Options, xen_domain: XenDomain):
         self.__context = pyudev.Context()
         self.__root_devices = [self.__get_device(x) for x in opts.hubs]
         self.__options = opts
+        self.__domain = xen_domain
 
         for d in self.__root_devices:
             if not d.is_a_root_device():
@@ -199,94 +196,7 @@ class DeviceMonitor:
                 raise RuntimeError("Device {0} is not a hub".format(d.sys_name))
 
 
-def get_xs_list(xs_client, xs_path):
-    return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
-
-
-def get_xs_value(xs_client, xs_path):
-    return xs_client[bytes(xs_path, "ascii")].decode("ascii")
-
-
-def set_xs_value(xs_client, xs_path, xs_value):
-    xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
-
-
-def send_qmp_command(domain_id: int, command: str, arguments: Dict[str, str]) -> bool:
-    # noinspection PyUnresolvedReferences
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
-        options.print_very_verbose("Connecting to QMP")
-        qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(domain_id))
-        qmp_file = qmp_socket.makefile()
-        options.print_very_verbose(qmp_file.readline())
-        qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
-        options.print_very_verbose(qmp_file.readline())
-        argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
-        command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
-        options.print_very_verbose(command_str)
-        qmp_socket.send(bytes(command_str, "ascii"))
-        result = qmp_file.readline()
-        options.print_very_verbose(result)
-        return "error" not in result
-
-
-def find_next_open_controller_and_port(domain_id: int) -> Tuple[int, int]:
-    with pyxs.Client() as c:
-        path = "/libxl/{0}/device/vusb".format(domain_id)
-        for controller in get_xs_list(c, path):
-            c_path = "{0}/{1}/port".format(path, controller)
-            for port in get_xs_list(c, c_path):
-                d_path = "{0}/{1}".format(c_path, port)
-                if get_xs_value(c, d_path) == "":
-                    options.print_verbose("Choosing Controller {0}, Slot {1}"
-                                          .format(controller, port))
-                    return int(controller), int(port)
-
-
-def set_xenstore_and_send_qmp_command(domain_id: int, xs_path: str, xs_value: str, qmp_command: str,
-                                      qmp_arguments: Dict[str, str]) -> bool:
-    with pyxs.Client() as c:
-        txn_id = c.transaction()
-        try:
-            set_xs_value(c, xs_path, xs_value)
-
-            if not send_qmp_command(domain_id, qmp_command, qmp_arguments):
-                txn_id = None
-                c.rollback()
-                return False
-        except pyxs.PyXSError as e:
-            if txn_id is not None:
-                c.rollback()
-            options.print_unless_quiet(e)
-            return False
-
-        c.commit()
-
-    return True
-
-
-def attach_device_to_xen(dev: Device, domain_id: int) -> Optional[Tuple[int, int, int, int]]:
-    # Find an open controller and slot
-    controller, port = find_next_open_controller_and_port(domain_id)
-
-    # Add the entry to xenstore
-    path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, controller, port)
-    busnum = dev.busnum
-    devnum = dev.devnum
-
-    if not set_xenstore_and_send_qmp_command(domain_id, path, dev.sys_name, "device_add",
-                                             {"id": "xenusb-{0}-{1}".format(busnum, devnum),
-                                              "driver": "usb-host",
-                                              "bus": "xenusb-{0}.0".format(controller),
-                                              "port": "{0}".format(port),
-                                              "hostbus": "{0}".format(busnum),
-                                              "hostaddr": "{0}".format(devnum)}):
-        return None
-
-    return controller, port, busnum, devnum
-
-
-# This method is going to take some work.  xl's tooling doesn't actually do the right thing (as of 4.8), so we'll
-# want to communicate with qemu directly.  The C++ code to do this in xl can be found at:
+# The C++ code to do this in xl can be found at:
 # https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_usb.c;hb=HEAD
 #   (libxl__device_usbdev_del_hvm) -- We should be able to do the ad
 # https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_qmp.c;hb=HEAD
@@ -302,51 +212,136 @@ def attach_device_to_xen(dev: Device, domain_id: int) -> Optional[Tuple[int, int
 # 3) Manually remove xenstore entry after this operation, if it is successful (actually, libxl removes it first,
 #    and puts the entry back if it failed) (libxl__device_usbdev_remove_xenstore)
 # 4) libxl rebinds the device to the driver, but since it has been removed, we won't need to do that.
-def detach_device_from_xen(domain_id: int, device_mapping: Tuple[int, int, int, int]) -> bool:
-    if device_mapping[2] <= 0:
-        # We don't have enough information to remove it.  Just leave things alone.
-        # TODO: This is technically a bug, but will require some xenstore trickery to get right.
-        return False
+class XenDomain:
+    @staticmethod
+    def __get_domain_id(name: str) -> int:
+        with pyxs.Client() as c:
+            for domain_id in XenDomain.__get_xs_list(c, "/local/domain"):
+                path = "/local/domain/{0}/name".format(domain_id)
+                if XenDomain.__get_xs_value(c, path) == name:
+                    return int(domain_id)
+            raise NameError("Could not find domain {0}".format(name))
 
-    path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(domain_id, device_mapping[0], device_mapping[1])
-    return set_xenstore_and_send_qmp_command(domain_id, path, "", "device_del",
-                                             {"id": "xenusb-{0}-{1}".format(device_mapping[2], device_mapping[3])})
+    @staticmethod
+    def __set_xs_value(xs_client, xs_path, xs_value):
+        xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
+    @staticmethod
+    def __get_xs_list(xs_client, xs_path):
+        return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
 
-def find_domain_id(name: str) -> int:
-    with pyxs.Client() as c:
-        for domain_id in get_xs_list(c, "/local/domain"):
-            path = "/local/domain/{0}/name".format(domain_id)
-            if get_xs_value(c, path) == name:
-                return int(domain_id)
-        return -1
+    @staticmethod
+    def __get_xs_value(xs_client, xs_path):
+        return xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
+    def __send_qmp_command(self, command: str, arguments: Dict[str, str]) -> bool:
+        # noinspection PyUnresolvedReferences
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
+            self.__options.print_very_verbose("Connecting to QMP")
+            qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
+            qmp_file = qmp_socket.makefile()
+            self.__options.print_very_verbose(qmp_file.readline())
+            qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
+            self.__options.print_very_verbose(qmp_file.readline())
+            argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
+            command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
+            self.__options.print_very_verbose(command_str)
+            qmp_socket.send(bytes(command_str, "ascii"))
+            result = qmp_file.readline()
+            self.__options.print_very_verbose(result)
+            return "error" not in result
 
-def find_device_mapping(domain_id: int, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
-    with pyxs.Client() as c:
-        path = "/libxl/{0}/device/vusb".format(domain_id)
-        for controller in get_xs_list(c, path):
-            c_path = "{0}/{1}/port".format(path, controller)
-            for device in get_xs_list(c, c_path):
-                d_path = "{0}/{1}".format(c_path, device)
-                if get_xs_value(c, d_path) == sys_name:
-                    options.print_verbose("Controller {0}, Device {1}"
-                                          .format(controller, device))
-                    return controller, device, -1, -1
-    return None
+    def __set_xenstore_and_send_qmp_command(self, xs_path: str, xs_value: str, qmp_command: str,
+                                            qmp_arguments: Dict[str, str]) -> bool:
+        with pyxs.Client() as c:
+            txn_id = c.transaction()
+            try:
+                XenDomain.__set_xs_value(c, xs_path, xs_value)
+
+                if not self.__send_qmp_command(qmp_command, qmp_arguments):
+                    txn_id = None
+                    c.rollback()
+                    return False
+            except pyxs.PyXSError as e:
+                if txn_id is not None:
+                    c.rollback()
+                self.__options.print_unless_quiet(str(e))
+                return False
+
+            c.commit()
+
+        return True
+
+    def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
+        with pyxs.Client() as c:
+            path = "/libxl/{0}/device/vusb".format(self.__domain_id)
+            for controller in XenDomain.__get_xs_list(c, path):
+                c_path = "{0}/{1}/port".format(path, controller)
+                for port in XenDomain.__get_xs_list(c, c_path):
+                    d_path = "{0}/{1}".format(c_path, port)
+                    if XenDomain.__get_xs_value(c, d_path) == "":
+                        self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
+                                                     .format(controller, port))
+                        return int(controller), int(port)
+
+    def attach_device_to_xen(self, dev: Device) -> Optional[Tuple[int, int, int, int]]:
+        # Find an open controller and slot
+        controller, port = self.__find_next_open_controller_and_port()
+
+        # Add the entry to xenstore
+        path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, controller, port)
+        busnum = dev.busnum
+        devnum = dev.devnum
+
+        if not self.__set_xenstore_and_send_qmp_command(path, dev.sys_name, "device_add",
+                                                        {"id": "xenusb-{0}-{1}".format(busnum, devnum),
+                                                         "driver": "usb-host",
+                                                         "bus": "xenusb-{0}.0".format(controller),
+                                                         "port": "{0}".format(port),
+                                                         "hostbus": "{0}".format(busnum),
+                                                         "hostaddr": "{0}".format(devnum)}):
+            return None
+
+        return controller, port, busnum, devnum
+
+    def detach_device_from_xen(self, device_mapping: Tuple[int, int, int, int]) -> bool:
+        if device_mapping[2] <= 0:
+            # We don't have enough information to remove it.  Just leave things alone.
+            # TODO: This is technically a bug, but will require some xenstore trickery to get right.
+            return False
+
+        path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device_mapping[0], device_mapping[1])
+        return self.__set_xenstore_and_send_qmp_command(path, "", "device_del",
+                                                        {"id": "xenusb-{0}-{1}".format(device_mapping[2],
+                                                                                       device_mapping[3])})
+
+    def find_device_mapping(self, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
+        with pyxs.Client() as c:
+            path = "/libxl/{0}/device/vusb".format(self.__domain_id)
+            for controller in XenDomain.__get_xs_list(c, path):
+                c_path = "{0}/{1}/port".format(path, controller)
+                for device in XenDomain.__get_xs_list(c, c_path):
+                    d_path = "{0}/{1}".format(c_path, device)
+                    if XenDomain.__get_xs_value(c, d_path) == sys_name:
+                        self.__options.print_verbose("Controller {0}, Device {1}"
+                                                     .format(controller, device))
+                        return controller, device, -1, -1
+        return None
+
+    def __init__(self, opts: Options):
+        self.__domain_id = XenDomain.__get_domain_id(opts.domain)
+        self.__options = opts
 
 
 def main(args: List[str]) -> None:
-    global options
     options = Options(args)
-    domain_id = find_domain_id(options.domain)
-    if domain_id < 0:
-        raise NameError("Could not find domain {0}".format(vm_name))
+
+    xen_domain = XenDomain(options)
 
     try:
-        monitor = DeviceMonitor(options)
-        device_map = monitor.get_connected_devices(domain_id)
-        monitor.monitor_devices(device_map, domain_id)
+        monitor = DeviceMonitor(options, xen_domain)
+        device_map = monitor.get_connected_devices()
+        monitor.monitor_devices(device_map)
     except KeyboardInterrupt:
         pass
 
