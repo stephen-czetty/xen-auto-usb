@@ -113,6 +113,10 @@ class Device:
     def action(self):
         return self.__inner.action
 
+    @property
+    def children(self):
+        return (Device(x) for x in self.__inner.children)
+
     def is_a_hub(self) -> bool:
         return "bDeviceClass" in self.__inner.attributes.available_attributes \
                and int(self.__inner.attributes.get("bDeviceClass"), 16) == 9
@@ -127,8 +131,8 @@ class Device:
 
         return False
 
-    def find_devices_from_root(self) -> Iterable[pyudev.Device]:
-        for d in self.__inner.children:
+    def devices_of_interest(self) -> Iterable['Device']:
+        for d in self.children:
             if d.is_a_device_we_care_about([self]):
                 yield d
 
@@ -136,16 +140,63 @@ class Device:
         self.__inner = inner
 
 
-class DeviceFactory:
+class DeviceMonitor:
     __context = None
 
-    @staticmethod
-    def get_device(device_name: str) -> Device:
-        DeviceFactory.__context = DeviceFactory.__context if DeviceFactory.__context else pyudev.Context()
-
-        inner = pyudev.Devices.from_path(DeviceFactory.__context, "{0}/{1}".format(sysfs_root, device_name))
+    def __get_device(self, device_name: str) -> Device:
+        inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(sysfs_root, device_name))
 
         return Device(inner)
+
+    def get_connected_devices(self, domain_id: int) \
+            -> Dict[str, Tuple[int, int, int, int]]:
+        device_map = {}
+        for monitored_device in self.__root_devices:
+            for device in monitored_device.devices_of_interest():
+                self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
+                dev_map = find_device_mapping(domain_id, device.sys_name)
+                if dev_map is None:
+                    dev_map = attach_device_to_xen(device, domain_id)
+                if dev_map is not None:
+                    device_map[device.sys_name] = dev_map
+        return device_map
+
+    # This method never returns unless there's an exception.  Good?  Bad?
+    def monitor_devices(self,
+                        known_devices: Dict[str, Tuple[int, int, int, int]], domain_id: int) \
+            -> Dict[str, Tuple[int, int, int, int]]:
+        device_map = known_devices.copy()
+        monitor = pyudev.Monitor.from_netlink(self.__context)
+        monitor.filter_by('usb')
+
+        for device in cast(Iterable[Optional[pyudev.Device]], iter(monitor.poll, None)):
+            if device is None:
+                return device_map
+
+            device = Device(device)
+            self.__options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
+            if device.action == "add":
+                if device.is_a_device_we_care_about(self.__root_devices):
+                    if device.sys_name not in device_map:
+                        self.__options.print_verbose("Device added: {0}".format(device))
+                        dev_map = attach_device_to_xen(device, domain_id)
+                        if dev_map is not None:
+                            device_map[device.sys_name] = dev_map
+            elif device.action == "remove" and device.sys_name in device_map:
+                self.__options.print_verbose("Removing device: {0}".format(device))
+                if detach_device_from_xen(domain_id, device_map[device.sys_name]):
+                    del device_map[device.sys_name]
+
+    def __init__(self, opts: Options):
+        self.__context = pyudev.Context()
+        self.__root_devices = [self.__get_device(x) for x in opts.hubs]
+        self.__options = opts
+
+        for d in self.__root_devices:
+            if not d.is_a_root_device():
+                raise RuntimeError("Device {0} is not a root device node".format(d.sys_name))
+            if not d.is_a_hub():
+                raise RuntimeError("Device {0} is not a hub".format(d.sys_name))
 
 
 def get_xs_list(xs_client, xs_path):
@@ -285,51 +336,6 @@ def find_device_mapping(domain_id: int, sys_name: str) -> Optional[Tuple[int, in
     return None
 
 
-def get_device(name: str) -> Device:
-    return DeviceFactory.get_device(name)
-
-
-def get_connected_devices(devices_to_monitor: List[Device], domain_id: int) \
-        -> Dict[str, Tuple[int, int, int, int]]:
-    device_map = {}
-    for monitored_device in devices_to_monitor:
-        for device in monitored_device.find_devices_from_root():
-            options.print_verbose("Found at startup: {0.device_path}".format(device))
-            dev_map = find_device_mapping(domain_id, device.sys_name)
-            if dev_map is None:
-                dev_map = attach_device_to_xen(device, domain_id)
-            if dev_map is not None:
-                device_map[device.sys_name] = dev_map
-    return device_map
-
-
-# This method never returns unless there's an exception.  Good?  Bad?
-def monitor_devices(ctx: pyudev.Context, devices_to_monitor: List[Device],
-                    known_devices: Dict[str, Tuple[int, int, int, int]], domain_id: int) \
-        -> Dict[str, Tuple[int, int, int, int]]:
-    device_map = known_devices.copy()
-    monitor = pyudev.Monitor.from_netlink(ctx)
-    monitor.filter_by('usb')
-
-    for device in cast(Iterable[Optional[pyudev.Device]], iter(monitor.poll, None)):
-        if device is None:
-            return device_map
-
-        device = Device(device)
-        options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
-        if device.action == "add":
-            if device.is_a_device_we_care_about(devices_to_monitor):
-                if device.sys_name not in device_map:
-                    options.print_verbose("Device added: {0}".format(device))
-                    dev_map = attach_device_to_xen(device, domain_id)
-                    if dev_map is not None:
-                        device_map[device.sys_name] = dev_map
-        elif device.action == "remove" and device.sys_name in device_map:
-            options.print_verbose("Removing device: {0}".format(device))
-            if detach_device_from_xen(domain_id, device_map[device.sys_name]):
-                del device_map[device.sys_name]
-
-
 def main(args: List[str]) -> None:
     global options
     options = Options(args)
@@ -337,17 +343,10 @@ def main(args: List[str]) -> None:
     if domain_id < 0:
         raise NameError("Could not find domain {0}".format(vm_name))
 
-    context = pyudev.Context()
-    monitored_devices = [get_device(h) for h in options.hubs]
-    for d in monitored_devices:
-        if not d.is_a_root_device():
-            raise RuntimeError("Device {0} is not a root device node".format(d.sys_name))
-        if not d.is_a_hub():
-            raise RuntimeError("Device {0} is not a hub".format(d.sys_name))
-
     try:
-        device_map = get_connected_devices(monitored_devices, domain_id)
-        monitor_devices(context, monitored_devices, device_map, domain_id)
+        monitor = DeviceMonitor(options)
+        device_map = monitor.get_connected_devices(domain_id)
+        monitor.monitor_devices(device_map, domain_id)
     except KeyboardInterrupt:
         pass
 
