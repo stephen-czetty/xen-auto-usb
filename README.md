@@ -10,6 +10,10 @@ enough information aronud to remove it from the VM after it's been unplugged.
 
 This script attempts to fix that shortcoming.
 
+---
+| | **NOTE** I'm currently running this in a screen window:<br>`screen sudo ./auto-usb-attach.py -d foo -u usb1` |
+---
+
 ### Usage ###
 
     usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN -u HUB
@@ -32,3 +36,12 @@ This script attempts to fix that shortcoming.
 ### Contribution guidelines ###
 
 * TBD.  Submit a pull request, and we'll talk.
+
+### Still TODO ###
+
+* Run as a daemon
+* Store state in xenstore, so we can recover from a crash.
+* Gracefully handle situations where the VM is not running (wait for it to come up?)
+* Gracefully handle VM shutdown
+* (Bonus) Figure out how to not run as root
+* (Bonus) Support multiple VMs concurrently
