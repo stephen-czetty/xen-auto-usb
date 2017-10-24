@@ -10,9 +10,9 @@ enough information aronud to remove it from the VM after it's been unplugged.
 
 This script attempts to fix that shortcoming.
 
----
-| | **NOTE** I'm currently running this in a screen window:<br>`screen sudo ./auto-usb-attach.py -d foo -u usb1` |
----
+
+**NOTE** I'm currently running this in a screen window:
+    screen sudo ./auto-usb-attach.py -d foo -u usb1
 
 ### Usage ###
 
