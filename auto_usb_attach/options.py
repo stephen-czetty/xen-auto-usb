@@ -43,7 +43,8 @@ class Options:
         group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
         group.add_argument("-q", "--quiet", help="be very quiet", action="store_true")
         parser.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store", required=True)
-        parser.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")", type=str,
+        parser.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
+                                                "can be specified multiple times", type=str,
                             action="append", required=True)
 
         return parser

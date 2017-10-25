@@ -25,7 +25,8 @@ This script attempts to fix that shortcoming.
       -q, --quiet           be very quiet
       -d DOMAIN, --domain DOMAIN
                             domain name to monitor
-      -u HUB, --hub HUB     usb hub to monitor (for example, "usb3", "1-1")
+      -u HUB, --hub HUB     usb hub to monitor (for example, "usb3", "1-1") can be
+                            specified multiple times
 
 
 ### Requirements ###
@@ -33,6 +34,24 @@ This script attempts to fix that shortcoming.
 * python 3.6
 * pyxs >= 0.4.1
 * pyudev >= 0.21.0
+
+### VM Setup ###
+
+Currently, this script does not automatically create usb controllers
+on the VM, so at least one must be created either in the vm
+configuration:
+
+     usbctrl = [ 'version=3,ports=15' ]
+
+or, vi xl:
+
+    xl usbctrl-attach <domain> version=3 ports=15
+
+It is recommended that you don't pre-configure usb devices that are
+attached to the hubs to be monitored.  They will be automatically
+configured at startup.  At this time, the script will not have enough
+information to correctly detach pre-configured devices should they
+be removed.
 
 ### Contribution guidelines ###
 
@@ -44,5 +63,6 @@ This script attempts to fix that shortcoming.
 * Store state in xenstore, so we can recover from a crash.
 * Gracefully handle situations where the VM is not running (wait for it to come up?)
 * Gracefully handle VM shutdown
+* Create usb controller if an available one doesn't exist
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
