@@ -43,7 +43,7 @@ configuration:
 
      usbctrl = [ 'version=3,ports=15' ]
 
-or, vi xl:
+or, via xl:
 
     xl usbctrl-attach <domain> version=3 ports=15
 
