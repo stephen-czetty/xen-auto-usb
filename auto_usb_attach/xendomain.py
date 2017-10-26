@@ -1,6 +1,7 @@
 from typing import Dict, Tuple, Optional
 import pyxs
 import re
+import socket
 
 from .device import Device
 from .options import Options
