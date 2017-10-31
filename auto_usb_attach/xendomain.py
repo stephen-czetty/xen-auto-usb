@@ -2,6 +2,7 @@ from typing import Dict, Tuple, Optional
 import pyxs
 import re
 import socket
+import json
 
 from .device import Device
 from .options import Options
@@ -57,12 +58,14 @@ class XenDomain:
             qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
             qmp_file = qmp_socket.makefile()
             self.__options.print_very_verbose(qmp_file.readline())
-            qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
+            # qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
+            qmp_socket.send(json.dumps({"execute": "qmp_capabilities"}).encode())
             self.__options.print_very_verbose(qmp_file.readline())
-            argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
-            command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
+            # argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
+            # command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
+            command_str = json.dumps({"execute": command, "arguments": arguments})
             self.__options.print_very_verbose(command_str)
-            qmp_socket.send(bytes(command_str, "ascii"))
+            qmp_socket.send(command_str.encode())
             result = qmp_file.readline()
             self.__options.print_very_verbose(result)
             return "error" not in result
