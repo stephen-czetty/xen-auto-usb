@@ -51,23 +51,31 @@ class XenDomain:
     def __get_xs_value(xs_client, xs_path):
         return xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
+    def __connect_to_qmp(self, sock: socket.socket) -> Dict:
+        self.__options.print_very_verbose("Connecting to QMP")
+        sock.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
+        result = sock.makefile().readline()
+        self.__options.print_very_verbose(result)
+        return json.loads(result)
+
+    def __send_on_socket(self, sock: socket.socket, data: str) -> Dict:
+        self.__options.print_very_verbose(data)
+        sock.send(data.encode())
+        result = sock.makefile().readline()
+        self.__options.print_very_verbose(result)
+        return json.loads(result)
+
     def __send_qmp_command(self, command: str, arguments: Dict[str, str]) -> bool:
         # noinspection PyUnresolvedReferences
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
-            self.__options.print_very_verbose("Connecting to QMP")
-            qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
-            qmp_file = qmp_socket.makefile()
-            self.__options.print_very_verbose(qmp_file.readline())
-            # qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
-            qmp_socket.send(json.dumps({"execute": "qmp_capabilities"}).encode())
-            self.__options.print_very_verbose(qmp_file.readline())
-            # argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
-            # command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
-            command_str = json.dumps({"execute": command, "arguments": arguments})
-            self.__options.print_very_verbose(command_str)
-            qmp_socket.send(command_str.encode())
-            result = qmp_file.readline()
-            self.__options.print_very_verbose(result)
+            self.__connect_to_qmp(qmp_socket)
+
+            result = self.__send_on_socket(qmp_socket, json.dumps({"execute": "qmp_capabilities"}))
+            if "error" in result:
+                return False
+
+            result = self.__send_on_socket(qmp_socket, json.dumps({"execute": command, "arguments": arguments}))
+
             return "error" not in result
 
     def __set_xenstore_and_send_qmp_command(self, xs_path: str, xs_value: str, qmp_command: str,
