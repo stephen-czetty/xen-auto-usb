@@ -52,10 +52,10 @@ class XenDomain:
         return xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
     def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], bool]:
-        return partial(self.__qmp.attach_usb_device(busnum, devnum, controller, port))
+        return partial(self.__qmp.attach_usb_device, busnum, devnum, controller, port)
 
     def __get_qmp_del_usb(self, controller: int, port: int) -> Callable[[], bool]:
-        return partial(self.__qmp.detach_usb_device(controller, port))
+        return partial(self.__qmp.detach_usb_device, controller, port)
 
     def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], bool]) -> bool:
         with pyxs.Client() as c:
