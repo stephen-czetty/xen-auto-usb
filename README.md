@@ -59,11 +59,13 @@ be removed.
 
 ### Still TODO ###
 
+* Convert to an observer pattern
+* Stay connected to QMP
 * Run as a daemon
   * Create a way to contact and control the daemon
 * Store state in xenstore, so we can recover from a crash.
 * Gracefully handle situations where the VM is not running (wait for it to come up?)
-* Gracefully handle VM shutdown (QMP should send an event if we're connected)
+* Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently

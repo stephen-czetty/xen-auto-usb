@@ -54,9 +54,9 @@ class XenDomain:
     def __connect_to_qmp(self, sock: socket.socket) -> Dict:
         self.__options.print_very_verbose("Connecting to QMP")
         sock.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
-        result = sock.makefile().readline()
-        self.__options.print_very_verbose(result)
-        return json.loads(result)
+        greeting = sock.makefile().readline()
+        self.__options.print_very_verbose(greeting)
+        return json.loads(greeting)
 
     def __send_on_socket(self, sock: socket.socket, data: str) -> Dict:
         self.__options.print_very_verbose(data)
