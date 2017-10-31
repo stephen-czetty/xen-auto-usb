@@ -6,7 +6,7 @@ Python script for attaching usb devices to a xen domain
 
 The USB emulation in xen (4.8) leaves some to be desired.  libxl doesn't provide a facility
 to hot plug a device when it's been physically plugged into a hub, and it also doesn't keep
-enough information aronud to remove it from the VM after it's been unplugged.
+enough information around to remove it from the VM after it's been unplugged.
 
 This script attempts to fix that shortcoming.
 
@@ -59,8 +59,9 @@ be removed.
 
 ### Still TODO ###
 
-* Convert to an observer pattern
-* Stay connected to QMP
+* Stay connected to QMP (this will affect xl functionality, so we need
+    to configure another socket.)
+  * `-chardev socket,id={id},path={path},server,nowait -mon chardev={id},mode=control`
 * Run as a daemon
   * Create a way to contact and control the daemon
 * Store state in xenstore, so we can recover from a crash.

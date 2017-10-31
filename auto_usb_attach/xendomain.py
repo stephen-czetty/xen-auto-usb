@@ -1,11 +1,11 @@
-from typing import Dict, Tuple, Optional
+from functools import partial
+from typing import Tuple, Optional, Callable, Iterator
 import pyxs
 import re
-import socket
-import json
 
 from .device import Device
 from .options import Options
+from .qmp import Qmp
 
 # There is a bug in the latest version of pyxs.
 # There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
@@ -40,52 +40,30 @@ class XenDomain:
             raise NameError("Could not find domain {0}".format(name))
 
     @staticmethod
-    def __set_xs_value(xs_client, xs_path, xs_value):
+    def __set_xs_value(xs_client: pyxs.Client, xs_path: str, xs_value: str) -> None:
         xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
     @staticmethod
-    def __get_xs_list(xs_client, xs_path):
+    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterator[str]:
         return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
 
     @staticmethod
-    def __get_xs_value(xs_client, xs_path):
+    def __get_xs_value(xs_client: pyxs.Client, xs_path: str) -> str:
         return xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
-    def __connect_to_qmp(self, sock: socket.socket) -> Dict:
-        self.__options.print_very_verbose("Connecting to QMP")
-        sock.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
-        greeting = sock.makefile().readline()
-        self.__options.print_very_verbose(greeting)
-        return json.loads(greeting)
+    def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], bool]:
+        return partial(self.__qmp.attach_usb_device(busnum, devnum, controller, port))
 
-    def __send_on_socket(self, sock: socket.socket, data: str) -> Dict:
-        self.__options.print_very_verbose(data)
-        sock.send(data.encode())
-        result = sock.makefile().readline()
-        self.__options.print_very_verbose(result)
-        return json.loads(result)
+    def __get_qmp_del_usb(self, controller: int, port: int) -> Callable[[], bool]:
+        return partial(self.__qmp.detach_usb_device(controller, port))
 
-    def __send_qmp_command(self, command: str, arguments: Dict[str, str]) -> bool:
-        # noinspection PyUnresolvedReferences
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
-            self.__connect_to_qmp(qmp_socket)
-
-            result = self.__send_on_socket(qmp_socket, json.dumps({"execute": "qmp_capabilities"}))
-            if "error" in result:
-                return False
-
-            result = self.__send_on_socket(qmp_socket, json.dumps({"execute": command, "arguments": arguments}))
-
-            return "error" not in result
-
-    def __set_xenstore_and_send_qmp_command(self, xs_path: str, xs_value: str, qmp_command: str,
-                                            qmp_arguments: Dict[str, str]) -> bool:
+    def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], bool]) -> bool:
         with pyxs.Client() as c:
             txn_id = c.transaction()
             try:
                 XenDomain.__set_xs_value(c, xs_path, xs_value)
 
-                if not self.__send_qmp_command(qmp_command, qmp_arguments):
+                if not qmp_command():
                     txn_id = None
                     c.rollback()
                     return False
@@ -120,13 +98,8 @@ class XenDomain:
         busnum = dev.busnum
         devnum = dev.devnum
 
-        if not self.__set_xenstore_and_send_qmp_command(path, dev.sys_name, "device_add",
-                                                        {"id": "xenusb-{0}-{1}".format(busnum, devnum),
-                                                         "driver": "usb-host",
-                                                         "bus": "xenusb-{0}.0".format(controller),
-                                                         "port": "{0}".format(port),
-                                                         "hostbus": "{0}".format(busnum),
-                                                         "hostaddr": "{0}".format(devnum)}):
+        if not self.__set_xenstore_and_send_command(path, dev.sys_name,
+                                                    self.__get_qmp_add_usb(busnum, devnum, controller, port)):
             return None
 
         return controller, port, busnum, devnum
@@ -138,9 +111,8 @@ class XenDomain:
             return False
 
         path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device_mapping[0], device_mapping[1])
-        return self.__set_xenstore_and_send_qmp_command(path, "", "device_del",
-                                                        {"id": "xenusb-{0}-{1}".format(device_mapping[2],
-                                                                                       device_mapping[3])})
+        return self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device_mapping[2],
+                                                                                     device_mapping[3]))
 
     def find_device_mapping(self, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
         with pyxs.Client() as c:
@@ -152,9 +124,10 @@ class XenDomain:
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
                         self.__options.print_verbose("Controller {0}, Device {1}"
                                                      .format(controller, device))
-                        return controller, device, -1, -1
+                        return int(controller), int(device), -1, -1
         return None
 
     def __init__(self, opts: Options):
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
         self.__options = opts
+        self.__qmp = Qmp("/run/xen/qmp-libxl-{0}".format(self.__domain_id), opts)
