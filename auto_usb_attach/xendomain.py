@@ -54,8 +54,8 @@ class XenDomain:
     def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], bool]:
         return partial(self.__qmp.attach_usb_device, busnum, devnum, controller, port)
 
-    def __get_qmp_del_usb(self, controller: int, port: int) -> Callable[[], bool]:
-        return partial(self.__qmp.detach_usb_device, controller, port)
+    def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], bool]:
+        return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
     def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], bool]) -> bool:
         with pyxs.Client() as c:
@@ -107,7 +107,6 @@ class XenDomain:
     def detach_device_from_xen(self, device_mapping: Tuple[int, int, int, int]) -> bool:
         if device_mapping[2] <= 0:
             # We don't have enough information to remove it.  Just leave things alone.
-            # TODO: This is technically a bug, but will require some xenstore trickery to get right.
             return False
 
         path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device_mapping[0], device_mapping[1])
@@ -124,6 +123,7 @@ class XenDomain:
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
                         self.__options.print_verbose("Controller {0}, Device {1}"
                                                      .format(controller, device))
+                        # TODO: Lookup hostbus and hostaddr from qmp
                         return int(controller), int(device), -1, -1
         return None
 

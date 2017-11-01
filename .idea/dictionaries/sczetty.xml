@@ -2,6 +2,7 @@
   <dictionary name="sczetty">
     <words>
       <w>busnum</w>
+      <w>chardev</w>
       <w>czetty</w>
       <w>devnum</w>
       <w>hostaddr</w>
