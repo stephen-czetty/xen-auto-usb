@@ -13,7 +13,7 @@ This script attempts to fix that shortcoming.
 
 **NOTE** I'm currently running this in a screen window:
 
-    screen sudo ./auto-usb-attach.py -d foo -u usb1
+    screen sudo ./auto-usb-attach.py -d foo -u usb1 -u usb2
 
 ### Usage ###
 
