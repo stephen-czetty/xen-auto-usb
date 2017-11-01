@@ -18,16 +18,17 @@ This script attempts to fix that shortcoming.
 ### Usage ###
 
     usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN -u HUB
-    
+
     optional arguments:
       -h, --help            show this help message and exit
       -v, --verbose         increase verbosity
       -q, --quiet           be very quiet
+
+    required arguments:
       -d DOMAIN, --domain DOMAIN
                             domain name to monitor
       -u HUB, --hub HUB     usb hub to monitor (for example, "usb3", "1-1") can be
                             specified multiple times
-
 
 ### Requirements ###
 
