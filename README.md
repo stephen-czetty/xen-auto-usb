@@ -71,3 +71,9 @@ be removed.
 * Create usb controller if an available one doesn't exist
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
+
+### Copyright and License ###
+
+This work is Copyright (c) 2017 by Stephen M. Czetty, and is released
+under the GPLv3 license (see LICENSE)
+
