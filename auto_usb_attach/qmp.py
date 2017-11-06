@@ -1,6 +1,6 @@
 import json
 import socket
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple, cast, Iterable
 
 from .options import Options
 
@@ -54,6 +54,44 @@ class Qmp:
             result = self.__send_qmp_command(qmp_socket, "device_del", {"id": "xenusb-{0}-{1}".format(busnum, devnum)})
             return "error" not in result
 
+    def get_usb_host_address(self, controller: int, port: int) -> Optional[Tuple[int, int]]:
+        with self.__open_socket_and_connect() as qmp_socket:
+            if qmp_socket is None:
+                return None
+
+            result = self.__send_qmp_command(qmp_socket, "qom-list", {"path": "xenusb-{0}.0".format(controller)})
+            if "error" in result:
+                return None
+
+            for dev in (for d in cast(Iterable, result["return"]) if cast(str, d.type) == "link<usb-host>"):
+                dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": "xenusb-{0}.0".format(controller),
+                                                                             "property": dev.name})
+                if "error" in dev_result:
+                    continue
+
+                port_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": dev_result["return"],
+                                                                              "property": "port"})
+                if "error" in port_result:
+                    continue
+                if int(port_result["return"] != port):
+                    continue
+
+                dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": dev_result["return"],
+                                                                             "property": "hostbus"})
+                if "error" in dev_result:
+                    continue
+                hostbus = int(dev_result["return"])
+
+                dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": dev_result["return"],
+                                                                             "property": "hostaddr"})
+                if "error" in dev_result:
+                    continue
+                hostaddr = int(dev_result["return"])
+
+                return hostbus, hostaddr
+
+            return None
+
     def __init__(self, path: str, options: Options):
         self.__options = options
         self.__path = path
@@ -65,7 +103,7 @@ class Qmp:
 # {"execute": "qom-list", "arguments":{"path": "xenusb-0"}}
 # {"return": [..., {"name": "xenusb-0.0", "type": "child<usb-bus>"},...]
 # {"execute": "qom-list", "arguments": {"path": "xenusb-0.0"}}
-# {"return": [{"name": "realized", "type": "bool"}, {"name": "child[15]", "type": "link<usb-host>"}, {"name": "type", "type": "string"}, {"name": "hotplug-handler", "type": "link<hotplug-handler>"}, {"name": "child[14]", "type": "link<usb-host>"}]}
+# {"return": [..., {"name": "child[15]", "type": "link<usb-host>"}, {"name": "child[14]", "type": "link<usb-host>"}]}
 # {"execute": "qom-get", "arguments": {"path": "xenusb-0.0", "property": "child[15]"}}
 # {"return": "/machine/peripheral/xenusb-4-3"}
 # {"execute": "qom-list", "arguments": {"path": "/machine/peripheral/xenusb-4-3"}}
@@ -74,3 +112,6 @@ class Qmp:
 # {"return": "2"}
 # {"execute": "qom-get", "arguments": {"path": "xenusb-4-3", "property": "hostbus"}}
 # {"return": 4}
+# {"execute": "qom-get", "arguments":{"path": "xenusb-3-4", "property": "parent_bus"}}
+# {"return": "/machine/peripheral/xenusb-0/xenusb-0.0"}
+

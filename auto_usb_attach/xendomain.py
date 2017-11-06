@@ -118,13 +118,13 @@ class XenDomain:
             path = "/libxl/{0}/device/vusb".format(self.__domain_id)
             for controller in XenDomain.__get_xs_list(c, path):
                 c_path = "{0}/{1}/port".format(path, controller)
-                for device in XenDomain.__get_xs_list(c, c_path):
-                    d_path = "{0}/{1}".format(c_path, device)
+                for port in XenDomain.__get_xs_list(c, c_path):
+                    d_path = "{0}/{1}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
                         self.__options.print_verbose("Controller {0}, Device {1}"
-                                                     .format(controller, device))
-                        # TODO: Lookup hostbus and hostaddr from qmp
-                        return int(controller), int(device), -1, -1
+                                                     .format(controller, port))
+                        hostbus, hostaddr = self.__qmp.get_usb_host_address(controller, port) or -1, -1
+                        return int(controller), int(port), hostbus, hostaddr
         return None
 
     def __init__(self, opts: Options):
