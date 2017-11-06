@@ -28,8 +28,23 @@ class Qmp:
 
         return None if "error" in result else sock
 
-    def __send_qmp_command(self, qmp_socket: socket, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
+    def __send_qmp_command(self, qmp_socket: socket.socket, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
             return self.__send_on_socket(qmp_socket, json.dumps({"execute": command, "arguments": arguments}))
+
+    def __qom_list(self, qmp_socket: socket.socket, path: str) -> Optional[Iterable[Dict[str, str]]]:
+        result = self.__send_qmp_command(qmp_socket, "qom-list", {"path": path})
+        if "error" in result:
+            return None
+
+        return cast(Iterable[Dict[str, str]], result["return"])
+
+    def __qom_get(self, qmp_socket: socket.socket, path: str, property_name: str) -> Optional[Any]:
+        result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": path,
+                                                                 "property": property_name})
+        if "error" in result:
+            return None
+
+        return result["return"]
 
     def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> bool:
         with self.__open_socket_and_connect() as qmp_socket:
@@ -59,35 +74,31 @@ class Qmp:
             if qmp_socket is None:
                 return None
 
-            result = self.__send_qmp_command(qmp_socket, "qom-list", {"path": "xenusb-{0}.0".format(controller)})
-            if "error" in result:
+            result = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
+            if result is None:
                 return None
 
-            for dev in (d for d in cast(Iterable, result["return"]) if cast(str, d["type"]) == "link<usb-host>"):
-                dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": "xenusb-{0}.0".format(controller),
-                                                                             "property": dev["name"]})
-                if "error" in dev_result:
+            for dev in (d for d in result if cast(str, d["type"]) == "link<usb-host>"):
+                dev_result = self.__qom_get(qmp_socket, "xenusb-{0}.0".format(controller), dev["name"])
+                if dev_result is None:
                     continue
 
-                port_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": dev_result["return"],
-                                                                              "property": "port"})
-                if "error" in port_result:
+                path = dev_result
+                dev_result = self.__qom_get(qmp_socket, path, "port")
+                if dev_result is None:
                     continue
-                if int(port_result["return"]) != port:
+                if int(dev_result) != port:
                     continue
 
-                path = dev_result["return"]
-                dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": path,
-                                                                             "property": "hostbus"})
-                if "error" in dev_result:
+                dev_result = self.__qom_get(qmp_socket, path, "hostbus")
+                if dev_result is None:
                     return None
-                hostbus = int(dev_result["return"])
+                hostbus = int(dev_result)
 
-                dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": path,
-                                                                             "property": "hostaddr"})
-                if "error" in dev_result:
+                dev_result = self.__qom_get(qmp_socket, path, "hostaddr")
+                if dev_result is None:
                     return None
-                hostaddr = int(dev_result["return"])
+                hostaddr = int(dev_result)
 
                 return hostbus, hostaddr
 
