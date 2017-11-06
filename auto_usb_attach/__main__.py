@@ -1,11 +1,5 @@
 #!/usr/bin/env /usr/bin/python3.6
 
-# TODO: Store state in xenstore, so we can recover from a crash.
-# TODO: Gracefully handle situations where the VM is not running (wait for it to come up?)
-# TODO: Gracefully handle VM shutdown
-# TODO: Run as a daemon
-# BONUS TODO: Support multiple VMs concurrently
-
 # xenstore paths of interest:
 # /local/domain/* -- List of running domains (0, 1, etc.)
 # /local/domain/*/name -- Names of the domains

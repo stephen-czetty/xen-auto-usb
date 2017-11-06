@@ -65,9 +65,6 @@ be removed.
   * `-chardev socket,id={id},path={path},server,nowait -mon chardev={id},mode=control`
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Store state in xenstore, so we can recover from a crash.
-  * (Instead of doing this, we might be able to get the info directly from QMP,
-  see comments at the end of qmp.py
 * Gracefully handle situations where the VM is not running (wait for it to come up?)
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
