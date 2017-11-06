@@ -63,9 +63,9 @@ class Qmp:
             if "error" in result:
                 return None
 
-            for dev in (d for d in cast(Iterable, result["return"]) if cast(str, d.type) == "link<usb-host>"):
+            for dev in (d for d in cast(Iterable, result["return"]) if cast(str, d["type"]) == "link<usb-host>"):
                 dev_result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": "xenusb-{0}.0".format(controller),
-                                                                             "property": dev.name})
+                                                                             "property": dev["name"]})
                 if "error" in dev_result:
                     continue
 
