@@ -121,9 +121,9 @@ class XenDomain:
                 for port in XenDomain.__get_xs_list(c, c_path):
                     d_path = "{0}/{1}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
-                        self.__options.print_verbose("Controller {0}, Device {1}"
-                                                     .format(controller, port))
                         hostbus, hostaddr = self.__qmp.get_usb_host_address(controller, port) or -1, -1
+                        self.__options.print_verbose("Controller {0}, Device {1}, HostBus {2}, HostAddress {3}"
+                                                     .format(controller, port, hostbus, hostaddr))
                         return int(controller), int(port), hostbus, hostaddr
         return None
 
