@@ -48,3 +48,6 @@ class Device:
 
     def __init__(self, inner: pyudev.Device):
         self.__inner = inner
+
+    def __repr__(self):
+        return self.__inner.__repr__()

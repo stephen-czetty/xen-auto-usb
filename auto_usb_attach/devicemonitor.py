@@ -1,4 +1,4 @@
-from typing import Dict, Tuple, Iterable, Optional, cast, List
+from typing import Dict, Tuple, Iterable, Optional, cast
 from .device import Device
 from .options import Options
 from .xendomain import XenDomain
