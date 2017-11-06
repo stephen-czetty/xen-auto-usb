@@ -73,7 +73,7 @@ class Qmp:
                                                                               "property": "port"})
                 if "error" in port_result:
                     continue
-                if int(port_result["return"] != port):
+                if int(port_result["return"]) != port:
                     continue
 
                 path = dev_result["return"]
