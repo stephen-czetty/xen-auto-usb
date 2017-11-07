@@ -20,7 +20,7 @@ class Qmp:
         self.__options.print_very_verbose(result)
         return json.loads(result)
 
-    def __open_socket_and_connect(self) -> Optional[socket.socket]:
+    def __get_qmp_socket(self) -> Optional[socket.socket]:
         # noinspection PyUnresolvedReferences
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.__connect_to_qmp(sock)
@@ -47,7 +47,7 @@ class Qmp:
         return result["return"]
 
     def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> bool:
-        with self.__open_socket_and_connect() as qmp_socket:
+        with self.__get_qmp_socket() as qmp_socket:
             if qmp_socket is None:
                 return False
 
@@ -62,7 +62,7 @@ class Qmp:
             return "error" not in result
 
     def detach_usb_device(self, busnum: int, devnum: int) -> bool:
-        with self.__open_socket_and_connect() as qmp_socket:
+        with self.__get_qmp_socket() as qmp_socket:
             if qmp_socket is None:
                 return False
 
@@ -70,37 +70,30 @@ class Qmp:
             return "error" not in result
 
     def get_usb_host_address(self, controller: int, port: int) -> Optional[Tuple[int, int]]:
-        with self.__open_socket_and_connect() as qmp_socket:
+        with self.__get_qmp_socket() as qmp_socket:
             if qmp_socket is None:
                 return None
 
-            result = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
-            if result is None:
+            controller_devices = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
+            if controller_devices is None:
                 return None
 
-            for dev in (d for d in result if cast(str, d["type"]) == "link<usb-host>"):
-                dev_result = self.__qom_get(qmp_socket, "xenusb-{0}.0".format(controller), dev["name"])
-                if dev_result is None:
+            for dev in (d for d in controller_devices if cast(str, d["type"]) == "link<usb-host>"):
+                dev_path = self.__qom_get(qmp_socket, "xenusb-{0}.0".format(controller), dev["name"])
+                if dev_path is None:
                     continue
 
-                path = dev_result
-                dev_result = self.__qom_get(qmp_socket, path, "port")
-                if dev_result is None:
-                    continue
-                if int(dev_result) != port:
+                dev_port = self.__qom_get(qmp_socket, dev_path, "port")
+                if dev_port is None or int(dev_port) != port:
                     continue
 
-                dev_result = self.__qom_get(qmp_socket, path, "hostbus")
-                if dev_result is None:
+                hostbus = self.__qom_get(qmp_socket, dev_path, "hostbus")
+                hostaddr = self.__qom_get(qmp_socket, dev_path, "hostaddr")
+
+                if hostbus is None or hostaddr is None:
                     return None
-                hostbus = int(dev_result)
 
-                dev_result = self.__qom_get(qmp_socket, path, "hostaddr")
-                if dev_result is None:
-                    return None
-                hostaddr = int(dev_result)
-
-                return hostbus, hostaddr
+                return int(hostbus), int(hostaddr)
 
             return None
 
@@ -111,11 +104,11 @@ class Qmp:
 
 # QMP commands to look at that might get us the missing information for devices already attached at startup.
 # {"execute": "qom-list", "arguments":{"path": "peripheral"}}
-# {"return": [{"name": "xenusb-4-5", "type": "child<usb-host>"}, {"name": "xenusb-0", "type": "child<nec-usb-xhci>"}, {"name": "xenusb-3-6", "type": "child<usb-host>"}, {"name": "xenusb-3-4", "type": "child<usb-host>"},...]}
+# {"return": [{"name": "xenusb-4-5", "type": "child<usb-host>"}, {"name": "xenusb-0", "type": "child<nec-usb-xhci>"}, ...]}
 # {"execute": "qom-list", "arguments":{"path": "xenusb-0"}}
-# {"return": [..., {"name": "xenusb-0.0", "type": "child<usb-bus>"},...]
+# {"return": [{"name": "xenusb-0.0", "type": "child<usb-bus>"},...]
 # {"execute": "qom-list", "arguments": {"path": "xenusb-0.0"}}
-# {"return": [..., {"name": "child[15]", "type": "link<usb-host>"}, {"name": "child[14]", "type": "link<usb-host>"}]}
+# {"return": [{"name": "child[15]", "type": "link<usb-host>"}, {"name": "child[14]", "type": "link<usb-host>"}, ...]}
 # {"execute": "qom-get", "arguments": {"path": "xenusb-0.0", "property": "child[15]"}}
 # {"return": "/machine/peripheral/xenusb-4-3"}
 # {"execute": "qom-list", "arguments": {"path": "/machine/peripheral/xenusb-4-3"}}

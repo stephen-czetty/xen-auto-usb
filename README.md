@@ -65,6 +65,9 @@ be removed.
   * `-chardev socket,id={id},path={path},server,nowait -mon chardev={id},mode=control`
 * Run as a daemon
   * Create a way to contact and control the daemon
+* Remove devices from VM that are not physically attached at startup
+  * This can happen if devices are unplugged while this script isn't
+  running, for example.
 * Gracefully handle situations where the VM is not running (wait for it to come up?)
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
