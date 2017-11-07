@@ -20,37 +20,37 @@ class Qmp:
         self.__options.print_very_verbose(result)
         return json.loads(result)
 
-    def __get_qmp_socket(self) -> Optional[socket.socket]:
+    def __get_qmp_socket(self) -> socket.socket:
         # noinspection PyUnresolvedReferences
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.__connect_to_qmp(sock)
         result = self.__send_on_socket(sock, json.dumps({"execute": "qmp_capabilities"}))
 
-        return None if "error" in result else sock
+        if "error" in result:
+            raise QmpError(result["error"])
+
+        return sock
 
     def __send_qmp_command(self, qmp_socket: socket.socket, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
             return self.__send_on_socket(qmp_socket, json.dumps({"execute": command, "arguments": arguments}))
 
-    def __qom_list(self, qmp_socket: socket.socket, path: str) -> Optional[Iterable[Dict[str, str]]]:
+    def __qom_list(self, qmp_socket: socket.socket, path: str) -> Iterable[Dict[str, str]]:
         result = self.__send_qmp_command(qmp_socket, "qom-list", {"path": path})
         if "error" in result:
-            return None
+            raise QmpError(result["error"])
 
         return cast(Iterable[Dict[str, str]], result["return"])
 
-    def __qom_get(self, qmp_socket: socket.socket, path: str, property_name: str) -> Optional[Any]:
+    def __qom_get(self, qmp_socket: socket.socket, path: str, property_name: str) -> Any:
         result = self.__send_qmp_command(qmp_socket, "qom-get", {"path": path,
                                                                  "property": property_name})
         if "error" in result:
-            return None
+            raise QmpError(result["error"])
 
         return result["return"]
 
-    def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> bool:
+    def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> None:
         with self.__get_qmp_socket() as qmp_socket:
-            if qmp_socket is None:
-                return False
-
             result = self.__send_qmp_command(qmp_socket, "device_add",
                                              {"id": "xenusb-{0}-{1}".format(busnum, devnum),
                                               "driver": "usb-host",
@@ -59,21 +59,18 @@ class Qmp:
                                               "hostbus": "{0}".format(busnum),
                                               "hostaddr": "{0}".format(devnum)}
                                              )
-            return "error" not in result
+            if "error" in result:
+                raise QmpError(result["error"])
 
-    def detach_usb_device(self, busnum: int, devnum: int) -> bool:
+    def detach_usb_device(self, busnum: int, devnum: int) -> None:
         with self.__get_qmp_socket() as qmp_socket:
-            if qmp_socket is None:
-                return False
-
             result = self.__send_qmp_command(qmp_socket, "device_del", {"id": "xenusb-{0}-{1}".format(busnum, devnum)})
-            return "error" not in result
+
+            if "error" in result:
+                raise QmpError(result["error"])
 
     def get_usb_host_address(self, controller: int, port: int) -> Optional[Tuple[int, int]]:
         with self.__get_qmp_socket() as qmp_socket:
-            if qmp_socket is None:
-                return None
-
             controller_devices = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
             if controller_devices is None:
                 return None
@@ -100,6 +97,23 @@ class Qmp:
     def __init__(self, path: str, options: Options):
         self.__options = options
         self.__path = path
+
+
+class QmpError(Exception):
+    @property
+    def error_class(self):
+        return self.__error_class
+
+    @property
+    def message(self):
+        return self.__message
+
+    def __repr__(self):
+        return "{0}: {1}".format(self.__error_class, self.__message)
+
+    def __init__(self, error: Dict[str, str]):
+        self.__error_class = error["class"]
+        self.__message = error["desc"]
 
 
 # QMP commands to look at that might get us the missing information for devices already attached at startup.

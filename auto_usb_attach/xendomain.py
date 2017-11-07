@@ -5,7 +5,7 @@ import re
 
 from .device import Device
 from .options import Options
-from .qmp import Qmp
+from .qmp import Qmp, QmpError
 
 # There is a bug in the latest version of pyxs.
 # There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
@@ -51,26 +51,22 @@ class XenDomain:
     def __get_xs_value(xs_client: pyxs.Client, xs_path: str) -> str:
         return xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
-    def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], bool]:
+    def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], None]:
         return partial(self.__qmp.attach_usb_device, busnum, devnum, controller, port)
 
-    def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], bool]:
+    def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], None]:
         return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
-    def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], bool]) -> bool:
+    def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], None]) -> bool:
         with pyxs.Client() as c:
             txn_id = c.transaction()
             try:
                 XenDomain.__set_xs_value(c, xs_path, xs_value)
-
-                if not qmp_command():
-                    txn_id = None
-                    c.rollback()
-                    return False
-            except pyxs.PyXSError as e:
+                qmp_command()
+            except (pyxs.PyXSError, QmpError) as e:
                 if txn_id is not None:
                     c.rollback()
-                self.__options.print_unless_quiet(str(e))
+                self.__options.print_unless_quiet("Caught exception: {0}".format(e))
                 return False
 
             c.commit()
