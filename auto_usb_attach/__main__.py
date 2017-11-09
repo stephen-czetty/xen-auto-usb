@@ -10,7 +10,7 @@ from functools import partial
 from typing import List, Dict, Tuple
 
 from .options import Options
-from .xendomain import XenDomain
+from .xendomain import XenDomain, XenError
 from .devicemonitor import DeviceMonitor
 from .device import Device
 
@@ -19,12 +19,14 @@ device_map = {}
 
 
 def add_device(domain: XenDomain, root_devices: List[Device], device: Device):
-    if device.is_a_device_we_care_about(root_devices):
-        if device.sys_name not in device_map:
-            opts.print_verbose("Device added: {0}".format(device))
+    if device.is_a_device_we_care_about(root_devices) and device.sys_name not in device_map:
+        opts.print_verbose("Device added: {0}".format(device))
+
+        try:
             dev_map = domain.attach_device_to_xen(device)
-            if dev_map is not None:
-                device_map[device.sys_name] = dev_map
+            device_map[device.sys_name] = dev_map
+        except XenError:
+            pass
 
 
 def remove_device(domain: XenDomain, device: Device):

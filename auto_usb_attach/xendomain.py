@@ -57,7 +57,7 @@ class XenDomain:
     def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], None]:
         return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
-    def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], None]) -> bool:
+    def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], None]) -> None:
         with pyxs.Client() as c:
             txn_id = c.transaction()
             try:
@@ -67,11 +67,9 @@ class XenDomain:
                 if txn_id is not None:
                     c.rollback()
                 self.__options.print_unless_quiet("Caught exception: {0}".format(e))
-                return False
+                raise XenError(e)
 
             c.commit()
-
-        return True
 
     def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
         with pyxs.Client() as c:
@@ -85,7 +83,7 @@ class XenDomain:
                                                      .format(controller, port))
                         return int(controller), int(port)
 
-    def attach_device_to_xen(self, dev: Device) -> Optional[Tuple[int, int, int, int]]:
+    def attach_device_to_xen(self, dev: Device) -> Tuple[int, int, int, int]:
         # Find an open controller and slot
         controller, port = self.__find_next_open_controller_and_port()
 
@@ -94,20 +92,23 @@ class XenDomain:
         busnum = dev.busnum
         devnum = dev.devnum
 
-        if not self.__set_xenstore_and_send_command(path, dev.sys_name,
-                                                    self.__get_qmp_add_usb(busnum, devnum, controller, port)):
-            return None
+        self.__set_xenstore_and_send_command(path, dev.sys_name,
+                                             self.__get_qmp_add_usb(busnum, devnum, controller, port))
 
         return controller, port, busnum, devnum
 
     def detach_device_from_xen(self, device_mapping: Tuple[int, int, int, int]) -> bool:
         if device_mapping[2] <= 0:
             # We don't have enough information to remove it.  Just leave things alone.
+            self.__options.print_unless_quiet("WARN: Not enough information to automatically detach device at "
+                                              "controller {0}, port {1}".format(device_mapping[0], device_mapping[1]))
             return False
 
         path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device_mapping[0], device_mapping[1])
-        return self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device_mapping[2],
-                                                                                     device_mapping[3]))
+        self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device_mapping[2],
+                                                                              device_mapping[3]))
+
+        return True
 
     def find_device_mapping(self, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
         with pyxs.Client() as c:
@@ -127,3 +128,12 @@ class XenDomain:
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
         self.__options = opts
         self.__qmp = Qmp("/run/xen/qmp-libxl-{0}".format(self.__domain_id), opts)
+
+
+class XenError(Exception):
+    @property
+    def inner_exception(self):
+        return self.__inner
+
+    def __init__(self, inner: Exception):
+        self.__inner = inner
