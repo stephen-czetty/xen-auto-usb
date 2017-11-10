@@ -2,11 +2,15 @@
   <dictionary name="sczetty">
     <words>
       <w>busnum</w>
+      <w>chardev</w>
+      <w>czetty</w>
       <w>devnum</w>
       <w>hostaddr</w>
       <w>hostbus</w>
       <w>hostdev</w>
       <w>libxl</w>
+      <w>pyudev</w>
+      <w>pyxs</w>
       <w>qemu</w>
       <w>sbin</w>
       <w>sysfs</w>

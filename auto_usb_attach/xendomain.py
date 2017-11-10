@@ -1,10 +1,11 @@
-from typing import Dict, Tuple, Optional
+from functools import partial
+from typing import Tuple, Optional, Callable, Iterator
 import pyxs
 import re
-import socket
 
 from .device import Device
 from .options import Options
+from .qmp import Qmp, QmpError
 
 # There is a bug in the latest version of pyxs.
 # There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
@@ -39,54 +40,36 @@ class XenDomain:
             raise NameError("Could not find domain {0}".format(name))
 
     @staticmethod
-    def __set_xs_value(xs_client, xs_path, xs_value):
+    def __set_xs_value(xs_client: pyxs.Client, xs_path: str, xs_value: str) -> None:
         xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
     @staticmethod
-    def __get_xs_list(xs_client, xs_path):
+    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterator[str]:
         return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
 
     @staticmethod
-    def __get_xs_value(xs_client, xs_path):
+    def __get_xs_value(xs_client: pyxs.Client, xs_path: str) -> str:
         return xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
-    def __send_qmp_command(self, command: str, arguments: Dict[str, str]) -> bool:
-        # noinspection PyUnresolvedReferences
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as qmp_socket:
-            self.__options.print_very_verbose("Connecting to QMP")
-            qmp_socket.connect("/run/xen/qmp-libxl-{0}".format(self.__domain_id))
-            qmp_file = qmp_socket.makefile()
-            self.__options.print_very_verbose(qmp_file.readline())
-            qmp_socket.send(b"{\"execute\": \"qmp_capabilities\"}")
-            self.__options.print_very_verbose(qmp_file.readline())
-            argument_str = ", ".join("\"{0}\": \"{1}\"".format(k, v) for k, v in arguments.items())
-            command_str = "{{\"execute\": \"{0}\", \"arguments\": {{{1}}}}}".format(command, argument_str)
-            self.__options.print_very_verbose(command_str)
-            qmp_socket.send(bytes(command_str, "ascii"))
-            result = qmp_file.readline()
-            self.__options.print_very_verbose(result)
-            return "error" not in result
+    def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], None]:
+        return partial(self.__qmp.attach_usb_device, busnum, devnum, controller, port)
 
-    def __set_xenstore_and_send_qmp_command(self, xs_path: str, xs_value: str, qmp_command: str,
-                                            qmp_arguments: Dict[str, str]) -> bool:
+    def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], None]:
+        return partial(self.__qmp.detach_usb_device, busnum, devnum)
+
+    def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str, qmp_command: Callable[[], None]) -> None:
         with pyxs.Client() as c:
             txn_id = c.transaction()
             try:
                 XenDomain.__set_xs_value(c, xs_path, xs_value)
-
-                if not self.__send_qmp_command(qmp_command, qmp_arguments):
-                    txn_id = None
-                    c.rollback()
-                    return False
-            except pyxs.PyXSError as e:
+                qmp_command()
+            except (pyxs.PyXSError, QmpError) as e:
                 if txn_id is not None:
                     c.rollback()
-                self.__options.print_unless_quiet(str(e))
-                return False
+                self.__options.print_unless_quiet("Caught exception: {0}".format(e))
+                raise XenError(e)
 
             c.commit()
-
-        return True
 
     def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
         with pyxs.Client() as c:
@@ -100,7 +83,7 @@ class XenDomain:
                                                      .format(controller, port))
                         return int(controller), int(port)
 
-    def attach_device_to_xen(self, dev: Device) -> Optional[Tuple[int, int, int, int]]:
+    def attach_device_to_xen(self, dev: Device) -> Tuple[int, int, int, int]:
         # Find an open controller and slot
         controller, port = self.__find_next_open_controller_and_port()
 
@@ -109,41 +92,48 @@ class XenDomain:
         busnum = dev.busnum
         devnum = dev.devnum
 
-        if not self.__set_xenstore_and_send_qmp_command(path, dev.sys_name, "device_add",
-                                                        {"id": "xenusb-{0}-{1}".format(busnum, devnum),
-                                                         "driver": "usb-host",
-                                                         "bus": "xenusb-{0}.0".format(controller),
-                                                         "port": "{0}".format(port),
-                                                         "hostbus": "{0}".format(busnum),
-                                                         "hostaddr": "{0}".format(devnum)}):
-            return None
+        self.__set_xenstore_and_send_command(path, dev.sys_name,
+                                             self.__get_qmp_add_usb(busnum, devnum, controller, port))
 
         return controller, port, busnum, devnum
 
     def detach_device_from_xen(self, device_mapping: Tuple[int, int, int, int]) -> bool:
         if device_mapping[2] <= 0:
             # We don't have enough information to remove it.  Just leave things alone.
-            # TODO: This is technically a bug, but will require some xenstore trickery to get right.
+            self.__options.print_unless_quiet("WARN: Not enough information to automatically detach device at "
+                                              "controller {0}, port {1}".format(device_mapping[0], device_mapping[1]))
             return False
 
         path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device_mapping[0], device_mapping[1])
-        return self.__set_xenstore_and_send_qmp_command(path, "", "device_del",
-                                                        {"id": "xenusb-{0}-{1}".format(device_mapping[2],
-                                                                                       device_mapping[3])})
+        self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device_mapping[2],
+                                                                              device_mapping[3]))
+
+        return True
 
     def find_device_mapping(self, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
         with pyxs.Client() as c:
             path = "/libxl/{0}/device/vusb".format(self.__domain_id)
             for controller in XenDomain.__get_xs_list(c, path):
                 c_path = "{0}/{1}/port".format(path, controller)
-                for device in XenDomain.__get_xs_list(c, c_path):
-                    d_path = "{0}/{1}".format(c_path, device)
+                for port in XenDomain.__get_xs_list(c, c_path):
+                    d_path = "{0}/{1}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
-                        self.__options.print_verbose("Controller {0}, Device {1}"
-                                                     .format(controller, device))
-                        return controller, device, -1, -1
+                        hostbus, hostaddr = self.__qmp.get_usb_host_address(int(controller), int(port)) or (-1, -1)
+                        self.__options.print_verbose("Controller {0}, Device {1}, HostBus {2}, HostAddress {3}"
+                                                     .format(controller, port, hostbus, hostaddr))
+                        return int(controller), int(port), hostbus, hostaddr
         return None
 
     def __init__(self, opts: Options):
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
         self.__options = opts
+        self.__qmp = Qmp("/run/xen/qmp-libxl-{0}".format(self.__domain_id), opts)
+
+
+class XenError(Exception):
+    @property
+    def inner_exception(self):
+        return self.__inner
+
+    def __init__(self, inner: Exception):
+        self.__inner = inner

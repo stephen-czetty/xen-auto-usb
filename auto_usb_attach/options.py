@@ -39,13 +39,15 @@ class Options:
     def __get_argument_parser() -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser()
 
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
-        group.add_argument("-q", "--quiet", help="be very quiet", action="store_true")
-        parser.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store", required=True)
-        parser.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
-                                                "can be specified multiple times", type=str,
-                            action="append", required=True)
+        verbosity_group = parser.add_mutually_exclusive_group()
+        verbosity_group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
+        verbosity_group.add_argument("-q", "--quiet", help="be very quiet", action="store_true")
+        required_group = parser.add_argument_group("required arguments")
+        required_group.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store",
+                                    required=True)
+        required_group.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
+                                                        "can be specified multiple times", type=str,
+                                    action="append", required=True)
 
         return parser
 

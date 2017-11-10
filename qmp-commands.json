@@ -1,0 +1,451 @@
+{
+    "return": [
+        {
+            "name": "netdev_add"
+        },
+        {
+            "name": "device_add"
+        },
+        {
+            "name": "query-qmp-schema"
+        },
+        {
+            "name": "xen-set-replication"
+        },
+        {
+            "name": "xen-set-global-dirty-log"
+        },
+        {
+            "name": "xen-save-devices-state"
+        },
+        {
+            "name": "xen-load-devices-state"
+        },
+        {
+            "name": "xen-colo-do-checkpoint"
+        },
+        {
+            "name": "x-debug-block-dirty-bitmap-sha256"
+        },
+        {
+            "name": "x-colo-lost-heartbeat"
+        },
+        {
+            "name": "x-blockdev-remove-medium"
+        },
+        {
+            "name": "x-blockdev-insert-medium"
+        },
+        {
+            "name": "x-blockdev-change"
+        },
+        {
+            "name": "transaction"
+        },
+        {
+            "name": "trace-event-set-state"
+        },
+        {
+            "name": "trace-event-get-state"
+        },
+        {
+            "name": "system_wakeup"
+        },
+        {
+            "name": "system_reset"
+        },
+        {
+            "name": "system_powerdown"
+        },
+        {
+            "name": "stop"
+        },
+        {
+            "name": "set_password"
+        },
+        {
+            "name": "set_link"
+        },
+        {
+            "name": "send-key"
+        },
+        {
+            "name": "screendump"
+        },
+        {
+            "name": "rtc-reset-reinjection"
+        },
+        {
+            "name": "ringbuf-write"
+        },
+        {
+            "name": "ringbuf-read"
+        },
+        {
+            "name": "remove-fd"
+        },
+        {
+            "name": "quit"
+        },
+        {
+            "name": "query-xen-replication-status"
+        },
+        {
+            "name": "query-vnc-servers"
+        },
+        {
+            "name": "query-vnc"
+        },
+        {
+            "name": "query-vm-generation-id"
+        },
+        {
+            "name": "query-version"
+        },
+        {
+            "name": "query-uuid"
+        },
+        {
+            "name": "query-tpm-types"
+        },
+        {
+            "name": "query-tpm-models"
+        },
+        {
+            "name": "query-tpm"
+        },
+        {
+            "name": "query-target"
+        },
+        {
+            "name": "query-status"
+        },
+        {
+            "name": "query-spice"
+        },
+        {
+            "name": "query-rx-filter"
+        },
+        {
+            "name": "query-rocker-ports"
+        },
+        {
+            "name": "query-rocker-of-dpa-groups"
+        },
+        {
+            "name": "query-rocker-of-dpa-flows"
+        },
+        {
+            "name": "query-rocker"
+        },
+        {
+            "name": "query-pci"
+        },
+        {
+            "name": "query-named-block-nodes"
+        },
+        {
+            "name": "query-name"
+        },
+        {
+            "name": "query-migrate-parameters"
+        },
+        {
+            "name": "query-migrate-capabilities"
+        },
+        {
+            "name": "query-migrate-cache-size"
+        },
+        {
+            "name": "query-migrate"
+        },
+        {
+            "name": "query-mice"
+        },
+        {
+            "name": "query-memory-devices"
+        },
+        {
+            "name": "query-memdev"
+        },
+        {
+            "name": "query-machines"
+        },
+        {
+            "name": "query-kvm"
+        },
+        {
+            "name": "query-iothreads"
+        },
+        {
+            "name": "query-hotpluggable-cpus"
+        },
+        {
+            "name": "query-fdsets"
+        },
+        {
+            "name": "query-events"
+        },
+        {
+            "name": "query-dump-guest-memory-capability"
+        },
+        {
+            "name": "query-dump"
+        },
+        {
+            "name": "query-cpus"
+        },
+        {
+            "name": "query-cpu-model-expansion"
+        },
+        {
+            "name": "query-cpu-definitions"
+        },
+        {
+            "name": "query-commands"
+        },
+        {
+            "name": "query-command-line-options"
+        },
+        {
+            "name": "query-chardev-backends"
+        },
+        {
+            "name": "query-chardev"
+        },
+        {
+            "name": "query-blockstats"
+        },
+        {
+            "name": "query-block-jobs"
+        },
+        {
+            "name": "query-block"
+        },
+        {
+            "name": "query-balloon"
+        },
+        {
+            "name": "query-acpi-ospm-status"
+        },
+        {
+            "name": "qom-set"
+        },
+        {
+            "name": "qom-list-types"
+        },
+        {
+            "name": "qom-list"
+        },
+        {
+            "name": "qom-get"
+        },
+        {
+            "name": "qmp_capabilities"
+        },
+        {
+            "name": "pmemsave"
+        },
+        {
+            "name": "object-del"
+        },
+        {
+            "name": "object-add"
+        },
+        {
+            "name": "netdev_del"
+        },
+        {
+            "name": "nbd-server-stop"
+        },
+        {
+            "name": "nbd-server-start"
+        },
+        {
+            "name": "nbd-server-add"
+        },
+        {
+            "name": "migrate_set_speed"
+        },
+        {
+            "name": "migrate_set_downtime"
+        },
+        {
+            "name": "migrate_cancel"
+        },
+        {
+            "name": "migrate-start-postcopy"
+        },
+        {
+            "name": "migrate-set-parameters"
+        },
+        {
+            "name": "migrate-set-capabilities"
+        },
+        {
+            "name": "migrate-set-cache-size"
+        },
+        {
+            "name": "migrate-incoming"
+        },
+        {
+            "name": "migrate"
+        },
+        {
+            "name": "memsave"
+        },
+        {
+            "name": "input-send-event"
+        },
+        {
+            "name": "inject-nmi"
+        },
+        {
+            "name": "human-monitor-command"
+        },
+        {
+            "name": "getfd"
+        },
+        {
+            "name": "expire_password"
+        },
+        {
+            "name": "eject"
+        },
+        {
+            "name": "dump-guest-memory"
+        },
+        {
+            "name": "drive-mirror"
+        },
+        {
+            "name": "drive-backup"
+        },
+        {
+            "name": "device_del"
+        },
+        {
+            "name": "device-list-properties"
+        },
+        {
+            "name": "cpu-add"
+        },
+        {
+            "name": "cpu"
+        },
+        {
+            "name": "cont"
+        },
+        {
+            "name": "closefd"
+        },
+        {
+            "name": "client_migrate_info"
+        },
+        {
+            "name": "chardev-send-break"
+        },
+        {
+            "name": "chardev-remove"
+        },
+        {
+            "name": "chardev-change"
+        },
+        {
+            "name": "chardev-add"
+        },
+        {
+            "name": "change-vnc-password"
+        },
+        {
+            "name": "change-backing-file"
+        },
+        {
+            "name": "change"
+        },
+        {
+            "name": "blockdev-snapshot-sync"
+        },
+        {
+            "name": "blockdev-snapshot-internal-sync"
+        },
+        {
+            "name": "blockdev-snapshot-delete-internal-sync"
+        },
+        {
+            "name": "blockdev-snapshot"
+        },
+        {
+            "name": "blockdev-open-tray"
+        },
+        {
+            "name": "blockdev-mirror"
+        },
+        {
+            "name": "blockdev-del"
+        },
+        {
+            "name": "blockdev-close-tray"
+        },
+        {
+            "name": "blockdev-change-medium"
+        },
+        {
+            "name": "blockdev-backup"
+        },
+        {
+            "name": "blockdev-add"
+        },
+        {
+            "name": "block_set_io_throttle"
+        },
+        {
+            "name": "block_resize"
+        },
+        {
+            "name": "block_passwd"
+        },
+        {
+            "name": "block-stream"
+        },
+        {
+            "name": "block-set-write-threshold"
+        },
+        {
+            "name": "block-job-set-speed"
+        },
+        {
+            "name": "block-job-resume"
+        },
+        {
+            "name": "block-job-pause"
+        },
+        {
+            "name": "block-job-complete"
+        },
+        {
+            "name": "block-job-cancel"
+        },
+        {
+            "name": "block-dirty-bitmap-remove"
+        },
+        {
+            "name": "block-dirty-bitmap-clear"
+        },
+        {
+            "name": "block-dirty-bitmap-add"
+        },
+        {
+            "name": "block-commit"
+        },
+        {
+            "name": "balloon"
+        },
+        {
+            "name": "add_client"
+        },
+        {
+            "name": "add-fd"
+        }
+    ]
+}
