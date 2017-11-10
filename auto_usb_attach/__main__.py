@@ -1,10 +1,5 @@
 #!/usr/bin/env /usr/bin/python3.6
 
-# xenstore paths of interest:
-# /local/domain/* -- List of running domains (0, 1, etc.)
-# /local/domain/*/name -- Names of the domains
-# /libxl/*/device/vusb/* -- Virtual USB controllers
-# /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
 import sys
 from functools import partial
 from typing import List, Dict, Tuple

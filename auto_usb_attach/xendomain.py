@@ -13,22 +13,11 @@ from .qmp import Qmp, QmpError
 pyxs.client._re_7bit_ascii = re.compile(b"^[\x00\x20-\x7f]*$")
 
 
-# The C++ code to do this in xl can be found at:
-# https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_usb.c;hb=HEAD
-#   (libxl__device_usbdev_del_hvm) -- We should be able to do the ad
-# https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_qmp.c;hb=HEAD
-#   (libxl__qmp_initialize, qmp_send, qmp_send_initialize)
-#
-# This stuff basically:
-# 1) connects to a socket: /run/xen/qmp-libxl-{domain_id},
-# 2) Uses the QMP protocol (https://wiki.qemu.org/Documentation/QMP) to control the VM.
-#    a) QMP is basically JSON.  It looks like we'll need to do:
-#        i)  { "execute": "qmp_capabilities" }
-#        ii) { "execute": "device_del", "arguments": { "id": "xenusb-{busnum}-{devnum}" } }"
-#            (where busnum and devnum are the *old* locations)
-# 3) Manually remove xenstore entry after this operation, if it is successful (actually, libxl removes it first,
-#    and puts the entry back if it failed) (libxl__device_usbdev_remove_xenstore)
-# 4) libxl rebinds the device to the driver, but since it has been removed, we won't need to do that.
+# xenstore paths of interest:
+# /local/domain/* -- List of running domains (0, 1, etc.)
+# /local/domain/*/name -- Names of the domains
+# /libxl/*/device/vusb/* -- Virtual USB controllers
+# /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
 class XenDomain:
     @staticmethod
     def __get_domain_id(name: str) -> int:

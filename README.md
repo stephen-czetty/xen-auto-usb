@@ -60,6 +60,7 @@ be removed.
 
 ### Still TODO ###
 
+* Get rid of the globals in __main__
 * Stay connected to QMP (this will affect xl functionality, so we need
     to configure another socket.)
   * `-chardev socket,id={id},path={path},server,nowait -mon chardev={id},mode=control`
