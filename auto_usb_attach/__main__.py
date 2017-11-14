@@ -2,12 +2,13 @@
 
 import sys
 from functools import partial
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 from .options import Options
 from .xendomain import XenDomain, XenError
 from .devicemonitor import DeviceMonitor
 from .device import Device
+from .xenusb import XenUsb
 
 opts = None
 device_map = {}
@@ -31,7 +32,7 @@ def remove_device(domain: XenDomain, device: Device):
             del device_map[device.sys_name]
 
 
-def get_connected_devices(domain: XenDomain, root_devices: List[Device]) -> Dict[str, Tuple[int, int, int, int]]:
+def get_connected_devices(domain: XenDomain, root_devices: List[Device]) -> Dict[str, XenUsb]:
     for monitored_device in root_devices:
         for device in monitored_device.devices_of_interest():
             opts.print_verbose("Found at startup: {0.device_path}".format(device))
@@ -56,7 +57,7 @@ def main(args: List[str]) -> None:
 
     try:
         device_map = get_connected_devices(xen_domain, root_devices)
-        monitor.monitor_devices(device_map)
+        monitor.monitor_devices()
     except KeyboardInterrupt:
         pass
 

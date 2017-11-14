@@ -1,8 +1,9 @@
 import json
 import socket
-from typing import Dict, Optional, Tuple, cast, Iterable, Any
+from typing import Dict, Optional, cast, Iterable, Any
 
 from .options import Options
+from .xenusb import XenUsb
 
 
 # The C++ code to do this in xl can be found at:
@@ -65,6 +66,36 @@ class Qmp:
 
         return result["return"]
 
+    def __get_usb_controller_ids(self, qmp_socket: socket.socket) -> Iterable[int]:
+        controllers = self.__qom_get(qmp_socket, "peripheral")
+        if controllers is None:
+            return
+
+        controller_types = {"child<piix3-usb-uhci>": 1,
+                            "child<usb-ehci>": 2,
+                            "child<nec-usb-xhci>": 3}
+        for dev in (d for d in controllers if cast(str, d["type"]) in controller_types):
+            yield int(cast(str, dev["name"]).split("-")[1])
+
+    def __get_usb_devices(self, qmp_socket: socket.socket, controller: int) -> Iterable[XenUsb]:
+        controller_devices = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
+        if controller_devices is None:
+            return
+
+        for dev in (d for d in controller_devices if cast(str, d["type"]) == "link<usb-host>"):
+            dev_path = self.__qom_get(qmp_socket, "xenusb-{0}.0".format(controller), dev["name"])
+            if dev_path is None:
+                continue
+
+            port = self.__qom_get(qmp_socket, dev_path, "port")
+            if port is None:
+                continue
+
+            hostbus = self.__qom_get(qmp_socket, dev_path, "hostbus")
+            hostaddr = self.__qom_get(qmp_socket, dev_path, "hostaddr")
+
+            yield XenUsb(controller, int(port), int(hostbus), int(hostaddr))
+
     def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> None:
         with self.__get_qmp_socket() as qmp_socket:
             result = self.__send_qmp_command(qmp_socket, "device_add",
@@ -85,30 +116,19 @@ class Qmp:
             if "error" in result:
                 raise QmpError(result["error"])
 
-    def get_usb_host_address(self, controller: int, port: int) -> Optional[Tuple[int, int]]:
+    def get_usb_host(self, controller: int, port: int) -> Optional[XenUsb]:
         with self.__get_qmp_socket() as qmp_socket:
             controller_devices = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
             if controller_devices is None:
                 return None
 
-            for dev in (d for d in controller_devices if cast(str, d["type"]) == "link<usb-host>"):
-                dev_path = self.__qom_get(qmp_socket, "xenusb-{0}.0".format(controller), dev["name"])
-                if dev_path is None:
-                    continue
+            return next((u for u in self.__get_usb_devices(controller) if u.port == port), None)
 
-                dev_port = self.__qom_get(qmp_socket, dev_path, "port")
-                if dev_port is None or int(dev_port) != port:
-                    continue
-
-                hostbus = self.__qom_get(qmp_socket, dev_path, "hostbus")
-                hostaddr = self.__qom_get(qmp_socket, dev_path, "hostaddr")
-
-                if hostbus is None or hostaddr is None:
-                    return None
-
-                return int(hostbus), int(hostaddr)
-
-            return None
+    def get_usb_devices(self) -> Iterable[str]:
+        with self.__get_qmp_socket() as qmp_socket:
+            for controller_id in self.__get_usb_controller_ids(qmp_socket):
+                for dev_path in self.__get_usb_devices(qmp_socket, controller_id):
+                    yield dev_path
 
     def __init__(self, path: str, options: Options):
         self.__options = options
