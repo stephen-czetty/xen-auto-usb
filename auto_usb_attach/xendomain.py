@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Tuple, Optional, Callable, Iterator
+from typing import Tuple, Optional, Callable, Iterable
 import pyxs
 import re
 
@@ -34,7 +34,7 @@ class XenDomain:
         xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
     @staticmethod
-    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterator[str]:
+    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterable[str]:
         return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
 
     @staticmethod
@@ -119,7 +119,7 @@ class XenDomain:
                         return usb_host
         return None
 
-    def get_attached_devices(self) -> Iterator[XenUsb]:
+    def get_attached_devices(self) -> Iterable[XenUsb]:
         return self.__qmp.get_usb_devices()
 
     def __init__(self, opts: Options):

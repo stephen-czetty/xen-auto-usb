@@ -1,6 +1,6 @@
 import json
 import socket
-from typing import Dict, Optional, cast, Iterator, Any
+from typing import Dict, Optional, cast, Iterable, Any
 
 from .options import Options
 from .xenusb import XenUsb
@@ -124,7 +124,7 @@ class Qmp:
 
             return next((u for u in self.__get_usb_devices(qmp_socket, controller) if u.port == port), None)
 
-    def get_usb_devices(self) -> Iterator[XenUsb]:
+    def get_usb_devices(self) -> Iterable[XenUsb]:
         with self.__get_qmp_socket() as qmp_socket:
             for controller_id in self.__get_usb_controller_ids(qmp_socket):
                 for usb_dev in self.__get_usb_devices(qmp_socket, controller_id):
