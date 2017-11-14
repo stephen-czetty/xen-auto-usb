@@ -67,7 +67,7 @@ class Qmp:
         return result["return"]
 
     def __get_usb_controller_ids(self, qmp_socket: socket.socket) -> Iterable[int]:
-        controllers = self.__qom_get(qmp_socket, "peripheral")
+        controllers = self.__qom_list(qmp_socket, "peripheral")
         if controllers is None:
             return
 
@@ -122,7 +122,7 @@ class Qmp:
             if controller_devices is None:
                 return None
 
-            return next((u for u in self.__get_usb_devices(controller) if u.port == port), None)
+            return next((u for u in self.__get_usb_devices(qmp_socket, controller) if u.port == port), None)
 
     def get_usb_devices(self) -> Iterable[str]:
         with self.__get_qmp_socket() as qmp_socket:
