@@ -111,7 +111,7 @@ class XenDomain:
                     d_path = "{0}/{1}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
                         usb_host = self.__qmp.get_usb_host(int(controller), int(port)) or (-1, -1)
-                        self.__options.print_verbose("Controller {0}, Device {1}, HostBus {2}, HostAddress {3}"
+                        self.__options.print_verbose("Controller {0}, Port {1}, HostBus {2}, HostAddress {3}"
                                                      .format(usb_host.controller,
                                                              usb_host.port,
                                                              usb_host.hostbus,

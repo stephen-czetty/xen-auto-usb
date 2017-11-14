@@ -124,11 +124,11 @@ class Qmp:
 
             return next((u for u in self.__get_usb_devices(qmp_socket, controller) if u.port == port), None)
 
-    def get_usb_devices(self) -> Iterable[str]:
+    def get_usb_devices(self) -> Iterable[XenUsb]:
         with self.__get_qmp_socket() as qmp_socket:
             for controller_id in self.__get_usb_controller_ids(qmp_socket):
-                for dev_path in self.__get_usb_devices(qmp_socket, controller_id):
-                    yield dev_path
+                for usb_dev in self.__get_usb_devices(qmp_socket, controller_id):
+                    yield usb_dev
 
     def __init__(self, path: str, options: Options):
         self.__options = options
