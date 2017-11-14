@@ -44,6 +44,12 @@ def get_connected_devices(domain: XenDomain, root_devices: List[Device]) -> Dict
     return device_map
 
 
+def remove_disconnected_devices(domain: XenDomain, devices: Dict[str, XenUsb]):
+    for dev in domain.get_attached_devices():
+        if dev not in devices.values():
+            domain.detach_device_from_xen(dev)
+
+
 def main(args: List[str]) -> None:
     global opts, device_map
     opts = Options(args)
@@ -57,6 +63,7 @@ def main(args: List[str]) -> None:
 
     try:
         device_map = get_connected_devices(xen_domain, root_devices)
+        remove_disconnected_devices(xen_domain, device_map)
         monitor.monitor_devices()
     except KeyboardInterrupt:
         pass

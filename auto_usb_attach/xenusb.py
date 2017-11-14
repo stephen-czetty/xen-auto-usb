@@ -20,3 +20,6 @@ class XenUsb:
         self.__port = port
         self.__hostbus = hostbus
         self.__hostaddr = hostaddr
+
+    def __eq__(self, other: "XenUsb") -> bool:
+        return self.hostbus == other.hostbus and self.hostaddr == other.hostaddr

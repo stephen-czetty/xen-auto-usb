@@ -119,6 +119,9 @@ class XenDomain:
                         return usb_host
         return None
 
+    def get_attached_devices(self) -> Iterator[XenUsb]:
+        return self.__qmp.get_usb_devices()
+
     def __init__(self, opts: Options):
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
         self.__options = opts
