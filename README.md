@@ -54,6 +54,14 @@ configured at startup.  At this time, the script will not have enough
 information to correctly detach pre-configured devices should they
 be removed.
 
+### Features ###
+
+* Monitors udev for device additions and removals on the specified usb
+  buses
+* Automatically adds or removes those devices from the xen domain
+* Automatically removes any "stale" devices on startup (devices
+  that were attached, but subsequently removed before startup.)
+
 ### Contribution guidelines ###
 
 * TBD.  Submit a pull request, and we'll talk.
@@ -66,9 +74,6 @@ be removed.
   * `-chardev socket,id={id},path={path},server,nowait -mon chardev={id},mode=control`
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Remove devices from VM that are not physically attached at startup
-  * This can happen if devices are unplugged while this script isn't
-  running, for example.
 * Gracefully handle situations where the VM is not running (wait for it to come up?)
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
