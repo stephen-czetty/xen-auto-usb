@@ -45,7 +45,7 @@ def get_connected_devices(domain: XenDomain, root_devices: List[Device]) -> Dict
 
 
 def remove_disconnected_devices(domain: XenDomain, devices: Dict[str, XenUsb]):
-    for dev in domain.get_attached_devices():
+    for dev in list(domain.get_attached_devices()):
         if dev not in devices.values():
             domain.detach_device_from_xen(dev)
 
