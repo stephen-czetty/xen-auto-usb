@@ -1,11 +1,12 @@
 from functools import partial
-from typing import Tuple, Optional, Callable, Iterator
+from typing import Tuple, Optional, Callable, Iterable
 import pyxs
 import re
 
 from .device import Device
 from .options import Options
 from .qmp import Qmp, QmpError
+from .xenusb import XenUsb
 
 # There is a bug in the latest version of pyxs.
 # There is a pending PR for it: https://github.com/selectel/pyxs/pull/13
@@ -33,7 +34,7 @@ class XenDomain:
         xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
     @staticmethod
-    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterator[str]:
+    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterable[str]:
         return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
 
     @staticmethod
@@ -72,7 +73,9 @@ class XenDomain:
                                                      .format(controller, port))
                         return int(controller), int(port)
 
-    def attach_device_to_xen(self, dev: Device) -> Tuple[int, int, int, int]:
+            raise XenError(Exception("No open device slot"))
+
+    def attach_device_to_xen(self, dev: Device) -> XenUsb:
         # Find an open controller and slot
         controller, port = self.__find_next_open_controller_and_port()
 
@@ -84,22 +87,22 @@ class XenDomain:
         self.__set_xenstore_and_send_command(path, dev.sys_name,
                                              self.__get_qmp_add_usb(busnum, devnum, controller, port))
 
-        return controller, port, busnum, devnum
+        return XenUsb(controller, port, busnum, devnum)
 
-    def detach_device_from_xen(self, device_mapping: Tuple[int, int, int, int]) -> bool:
-        if device_mapping[2] <= 0:
+    def detach_device_from_xen(self, device: XenUsb) -> bool:
+        if device.hostaddr <= 0:
             # We don't have enough information to remove it.  Just leave things alone.
             self.__options.print_unless_quiet("WARN: Not enough information to automatically detach device at "
-                                              "controller {0}, port {1}".format(device_mapping[0], device_mapping[1]))
+                                              "controller {0}, port {1}".format(device.controller, device.port))
             return False
 
-        path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device_mapping[0], device_mapping[1])
-        self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device_mapping[2],
-                                                                              device_mapping[3]))
+        path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device.controller, device.port)
+        self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device.hostbus,
+                                                                              device.hostaddr))
 
         return True
 
-    def find_device_mapping(self, sys_name: str) -> Optional[Tuple[int, int, int, int]]:
+    def find_device_mapping(self, sys_name: str) -> Optional[XenUsb]:
         with pyxs.Client() as c:
             path = "/libxl/{0}/device/vusb".format(self.__domain_id)
             for controller in XenDomain.__get_xs_list(c, path):
@@ -107,11 +110,17 @@ class XenDomain:
                 for port in XenDomain.__get_xs_list(c, c_path):
                     d_path = "{0}/{1}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
-                        hostbus, hostaddr = self.__qmp.get_usb_host_address(int(controller), int(port)) or (-1, -1)
-                        self.__options.print_verbose("Controller {0}, Device {1}, HostBus {2}, HostAddress {3}"
-                                                     .format(controller, port, hostbus, hostaddr))
-                        return int(controller), int(port), hostbus, hostaddr
+                        usb_host = self.__qmp.get_usb_host(int(controller), int(port)) or (-1, -1)
+                        self.__options.print_verbose("Controller {0}, Port {1}, HostBus {2}, HostAddress {3}"
+                                                     .format(usb_host.controller,
+                                                             usb_host.port,
+                                                             usb_host.hostbus,
+                                                             usb_host.hostaddr))
+                        return usb_host
         return None
+
+    def get_attached_devices(self) -> Iterable[XenUsb]:
+        return self.__qmp.get_usb_devices()
 
     def __init__(self, opts: Options):
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
