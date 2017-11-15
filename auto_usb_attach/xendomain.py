@@ -24,10 +24,10 @@ class XenDomain:
     def __get_domain_id(name: str) -> int:
         with pyxs.Client() as c:
             for domain_id in XenDomain.__get_xs_list(c, "/local/domain"):
-                path = "/local/domain/{0}/name".format(domain_id)
+                path = "/local/domain/{}/name".format(domain_id)
                 if XenDomain.__get_xs_value(c, path) == name:
                     return int(domain_id)
-            raise NameError("Could not find domain {0}".format(name))
+            raise NameError("Could not find domain {}".format(name))
 
     @staticmethod
     def __set_xs_value(xs_client: pyxs.Client, xs_path: str, xs_value: str) -> None:
@@ -56,18 +56,18 @@ class XenDomain:
             except (pyxs.PyXSError, QmpError) as e:
                 if txn_id is not None:
                     c.rollback()
-                self.__options.print_unless_quiet("Caught exception: {0}".format(e))
+                self.__options.print_unless_quiet("Caught exception: {}".format(e))
                 raise XenError(e)
 
             c.commit()
 
     def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
         with pyxs.Client() as c:
-            path = "/libxl/{0}/device/vusb".format(self.__domain_id)
+            path = "/libxl/{}/device/vusb".format(self.__domain_id)
             for controller in XenDomain.__get_xs_list(c, path):
-                c_path = "{0}/{1}/port".format(path, controller)
+                c_path = "{}/{}/port".format(path, controller)
                 for port in XenDomain.__get_xs_list(c, c_path):
-                    d_path = "{0}/{1}".format(c_path, port)
+                    d_path = "{}/{}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == "":
                         self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
                                                      .format(controller, port))
@@ -80,7 +80,7 @@ class XenDomain:
         controller, port = self.__find_next_open_controller_and_port()
 
         # Add the entry to xenstore
-        path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, controller, port)
+        path = "/libxl/{}/device/vusb/{}/port/{}".format(self.__domain_id, controller, port)
         busnum = dev.busnum
         devnum = dev.devnum
 
@@ -93,10 +93,10 @@ class XenDomain:
         if device.hostaddr <= 0:
             # We don't have enough information to remove it.  Just leave things alone.
             self.__options.print_unless_quiet("WARN: Not enough information to automatically detach device at "
-                                              "controller {0}, port {1}".format(device.controller, device.port))
+                                              "controller {}, port {}".format(device.controller, device.port))
             return False
 
-        path = "/libxl/{0}/device/vusb/{1}/port/{2}".format(self.__domain_id, device.controller, device.port)
+        path = "/libxl/{}/device/vusb/{}/port/{}".format(self.__domain_id, device.controller, device.port)
         self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device.hostbus,
                                                                               device.hostaddr))
 
@@ -104,14 +104,14 @@ class XenDomain:
 
     def find_device_mapping(self, sys_name: str) -> Optional[XenUsb]:
         with pyxs.Client() as c:
-            path = "/libxl/{0}/device/vusb".format(self.__domain_id)
+            path = "/libxl/{}/device/vusb".format(self.__domain_id)
             for controller in XenDomain.__get_xs_list(c, path):
-                c_path = "{0}/{1}/port".format(path, controller)
+                c_path = "{}/{}/port".format(path, controller)
                 for port in XenDomain.__get_xs_list(c, c_path):
-                    d_path = "{0}/{1}".format(c_path, port)
+                    d_path = "{}/{}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
                         usb_host = self.__qmp.get_usb_host(int(controller), int(port)) or (-1, -1)
-                        self.__options.print_verbose("Controller {0}, Port {1}, HostBus {2}, HostAddress {3}"
+                        self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
                                                      .format(usb_host.controller,
                                                              usb_host.port,
                                                              usb_host.hostbus,
@@ -125,7 +125,10 @@ class XenDomain:
     def __init__(self, opts: Options):
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
         self.__options = opts
-        self.__qmp = Qmp("/run/xen/qmp-libxl-{0}".format(self.__domain_id), opts)
+        self.__qmp = Qmp("/run/xen/qmp-libxl-{}".format(self.__domain_id), opts)
+
+    def __repr__(self):
+        return "XenDomain({!r})".format(self.__options)
 
 
 class XenError(Exception):
@@ -135,3 +138,6 @@ class XenError(Exception):
 
     def __init__(self, inner: Exception):
         self.__inner = inner
+
+    def __repr__(self):
+        return "XenError({!r})".format(self.__inner)

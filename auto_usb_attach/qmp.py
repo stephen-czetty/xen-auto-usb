@@ -78,12 +78,12 @@ class Qmp:
             yield int(cast(str, dev["name"]).split("-")[1])
 
     def __get_usb_devices(self, qmp_socket: socket.socket, controller: int) -> Iterable[XenUsb]:
-        controller_devices = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
+        controller_devices = self.__qom_list(qmp_socket, "xenusb-{}.0".format(controller))
         if controller_devices is None:
             return
 
         for dev in (d for d in controller_devices if cast(str, d["type"]) == "link<usb-host>"):
-            dev_path = self.__qom_get(qmp_socket, "xenusb-{0}.0".format(controller), dev["name"])
+            dev_path = self.__qom_get(qmp_socket, "xenusb-{}.0".format(controller), dev["name"])
             if dev_path is None:
                 continue
 
@@ -99,26 +99,26 @@ class Qmp:
     def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> None:
         with self.__get_qmp_socket() as qmp_socket:
             result = self.__send_qmp_command(qmp_socket, "device_add",
-                                             {"id": "xenusb-{0}-{1}".format(busnum, devnum),
+                                             {"id": "xenusb-{}-{}".format(busnum, devnum),
                                               "driver": "usb-host",
-                                              "bus": "xenusb-{0}.0".format(controller),
-                                              "port": "{0}".format(port),
-                                              "hostbus": "{0}".format(busnum),
-                                              "hostaddr": "{0}".format(devnum)}
+                                              "bus": "xenusb-{}.0".format(controller),
+                                              "port": str(port),
+                                              "hostbus": str(busnum),
+                                              "hostaddr": str(devnum)}
                                              )
             if "error" in result:
                 raise QmpError(result["error"])
 
     def detach_usb_device(self, busnum: int, devnum: int) -> None:
         with self.__get_qmp_socket() as qmp_socket:
-            result = self.__send_qmp_command(qmp_socket, "device_del", {"id": "xenusb-{0}-{1}".format(busnum, devnum)})
+            result = self.__send_qmp_command(qmp_socket, "device_del", {"id": "xenusb-{}-{}".format(busnum, devnum)})
 
             if "error" in result:
                 raise QmpError(result["error"])
 
     def get_usb_host(self, controller: int, port: int) -> Optional[XenUsb]:
         with self.__get_qmp_socket() as qmp_socket:
-            controller_devices = self.__qom_list(qmp_socket, "xenusb-{0}.0".format(controller))
+            controller_devices = self.__qom_list(qmp_socket, "xenusb-{}.0".format(controller))
             if controller_devices is None:
                 return None
 
@@ -134,6 +134,9 @@ class Qmp:
         self.__options = options
         self.__path = path
 
+    def __repr__(self):
+        return "Qmp({!r}, {!r}".format(self.__path, self.__options)
+
 
 class QmpError(Exception):
     @property
@@ -145,7 +148,10 @@ class QmpError(Exception):
         return self.__message
 
     def __repr__(self):
-        return "{0}: {1}".format(self.__error_class, self.__message)
+        return "QmpError({!r})".format({"class": self.__error_class, "desc": self.__message})
+
+    def __str__(self):
+        return "{}: {}".format(self.__error_class, self.__message)
 
     def __init__(self, error: Dict[str, str]):
         self.__error_class = error["class"]

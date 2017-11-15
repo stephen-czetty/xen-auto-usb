@@ -57,10 +57,14 @@ class Options:
         self.__verbosity = -1 if parsed.quiet else parsed.verbose
         self.__domain = parsed.domain
         self.__hubs = parsed.hub
+        self.__args = args
 
         self.print_very_verbose("Command line arguments:")
-        self.print_very_verbose("Verbosity: {0}".format("Very Verbose" if self.is_very_verbose else
-                                                        "Verbose" if self.is_verbose else
-                                                        "Quiet" if self.is_quiet else "Normal"))
-        self.print_very_verbose("Domain: {0}".format(self.domain))
-        self.print_very_verbose("Hubs: {0}".format(self.hubs))
+        self.print_very_verbose("Verbosity: {Z".format("Very Verbose" if self.is_very_verbose else
+                                                       "Verbose" if self.is_verbose else
+                                                       "Quiet" if self.is_quiet else "Normal"))
+        self.print_very_verbose("Domain: {}".format(self.domain))
+        self.print_very_verbose("Hubs: {}".format(self.hubs))
+
+    def __repr__(self):
+        return "Options({!r})".format(self.__args)
