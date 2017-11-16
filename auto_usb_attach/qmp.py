@@ -176,3 +176,7 @@ class QmpError(Exception):
 # {"execute": "qom-get", "arguments":{"path": "xenusb-3-4", "property": "parent_bus"}}
 # {"return": "/machine/peripheral/xenusb-0/xenusb-0.0"}
 
+# For adding a chardev at runtime:
+# {"execute": "chardev-add", "arguments": {"id": "test", "backend": {"type": "socket", "data": { "addr": {"data": {"path": "/var/run/xen/qmp-test"}, "type": "unix"}}, "server": true, "wait": false}}}
+# I don't (yet) see a way to tell qmp to put this chardev into "mode=control" as done on the commandline.
+
