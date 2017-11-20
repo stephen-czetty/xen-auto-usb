@@ -50,9 +50,10 @@ or, via xl:
 
 It is recommended that you don't pre-configure usb devices that are
 attached to the hubs to be monitored.  They will be automatically
-configured at startup.  At this time, the script will not have enough
-information to correctly detach pre-configured devices should they
-be removed.
+configured at startup.  If there are devices attached at startup,
+this script will attempt to gather the correct info it needs to
+handle a detach event, but there may be circumstances where that
+will fail.
 
 ### Features ###
 

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import argparse
 
 
@@ -22,6 +22,10 @@ class Options:
     @property
     def hubs(self) -> List[str]:
         return self.__hubs
+
+    @property
+    def qmp_socket(self) -> Optional[str]:
+        return self.__qmp_socket
 
     def print_very_verbose(self, string: str):
         if self.is_very_verbose:
@@ -48,6 +52,8 @@ class Options:
         required_group.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
                                                         "can be specified multiple times", type=str,
                                     action="append", required=True)
+        parser.add_argument("--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
+                            default=None)
 
         return parser
 
@@ -57,6 +63,7 @@ class Options:
         self.__verbosity = -1 if parsed.quiet else parsed.verbose
         self.__domain = parsed.domain
         self.__hubs = parsed.hub
+        self.__qmp_socket = parsed.qmp_socket
         self.__args = args
 
         self.print_very_verbose("Command line arguments:")

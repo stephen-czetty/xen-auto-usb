@@ -125,10 +125,18 @@ class XenDomain:
     def __init__(self, opts: Options):
         self.__domain_id = XenDomain.__get_domain_id(opts.domain)
         self.__options = opts
-        self.__qmp = Qmp("/run/xen/qmp-libxl-{}".format(self.__domain_id), opts)
 
     def __repr__(self):
         return "XenDomain({!r})".format(self.__options)
+
+    def __enter__(self):
+        self.__qmp = Qmp("/run/xen/qmp-libxl-{}".format(self.__domain_id), self.__options)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.__qmp is not None:
+            self.__qmp.__exit__(exc_type, exc_val, exc_tb)
+            self.__qmp = None
 
 
 class XenError(Exception):
