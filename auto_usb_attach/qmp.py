@@ -6,6 +6,49 @@ from .options import Options
 from .xenusb import XenUsb
 
 
+class QmpSocket:
+    def __connect_to_qmp(self) -> Dict[str, Any]:
+        self.__options.print_very_verbose("Connecting to QMP")
+        self.__socket.connect(self.__path)
+        greeting = self.__socket.makefile().readline()
+        self.__options.print_very_verbose(greeting)
+        return json.loads(greeting)
+
+    def send(self, data) -> Dict[str, Any]:
+        self.__options.print_very_verbose(data)
+        self.__socket.send(data.encode())
+        result = self.__socket.makefile().readline()
+        self.__options.print_very_verbose(result)
+        return json.loads(result)
+
+    def close(self):
+        self.__keep_open = False
+        self.__exit__()
+
+    def __init__(self, options: Options, path: str, keep_open=False):
+        self.__options = options
+        self.__path = path
+        self.__keep_open = keep_open
+        self.__socket = None
+
+    def __enter__(self):
+        if self.__socket is not None:
+            # noinspection PyUnresolvedReferences
+            self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self.__connect_to_qmp()
+            result = self.send(json.dumps({"execute": "qmp_capabilities"}))
+
+            if "error" in result:
+                raise QmpError(result["error"])
+
+        return self
+
+    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+        if (not self.__keep_open or exc_type is not None) and self.__socket is not None:
+            self.__socket.__exit__()
+            self.__socket = None
+
+
 # The C++ code to do this in xl can be found at:
 # https://xenbits.xen.org/gitweb/?p=xen.git;a=blob_plain;f=tools/libxl/libxl_usb.c;hb=HEAD
 #   (libxl__device_usbdev_del_hvm) -- We should be able to do the ad
@@ -123,49 +166,6 @@ class Qmp:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__qmp_socket is not None:
             self.__qmp_socket.close()
-
-
-class QmpSocket:
-    def __connect_to_qmp(self) -> Dict[str, Any]:
-        self.__options.print_very_verbose("Connecting to QMP")
-        self.__socket.connect(self.__path)
-        greeting = self.__socket.makefile().readline()
-        self.__options.print_very_verbose(greeting)
-        return json.loads(greeting)
-
-    def send(self, data) -> Dict[str, Any]:
-        self.__options.print_very_verbose(data)
-        self.__socket.send(data.encode())
-        result = self.__socket.makefile().readline()
-        self.__options.print_very_verbose(result)
-        return json.loads(result)
-
-    def close(self):
-        self.__keep_open = False
-        self.__exit__()
-
-    def __init__(self, options: Options, path: str, keep_open=False):
-        self.__options = options
-        self.__path = path
-        self.__keep_open = keep_open
-        self.__socket = None
-
-    def __enter__(self):
-        if self.__socket is not None:
-            # noinspection PyUnresolvedReferences
-            self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.__connect_to_qmp()
-            result = self.send(json.dumps({"execute": "qmp_capabilities"}))
-
-            if "error" in result:
-                raise QmpError(result["error"])
-
-        return self
-
-    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
-        if (not self.__keep_open or exc_type is not None) and self.__socket is not None:
-            self.__socket.__exit__()
-            self.__socket = None
 
 
 class QmpError(Exception):
