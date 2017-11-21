@@ -67,7 +67,7 @@ class Options:
         self.__args = args
 
         self.print_very_verbose("Command line arguments:")
-        self.print_very_verbose("Verbosity: {Z".format("Very Verbose" if self.is_very_verbose else
+        self.print_very_verbose("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
                                                        "Quiet" if self.is_quiet else "Normal"))
         self.print_very_verbose("Domain: {}".format(self.domain))
