@@ -74,7 +74,7 @@ configuration:
         "chardev=usb-attach,mode=control"
     ]
 
-You can then tell the script about this socket with the `qmp-socket`
+You can then tell the script about this socket with the `--qmp-socket`
 switch.
 
 At the moment, this isn't very useful, except maybe for a small
