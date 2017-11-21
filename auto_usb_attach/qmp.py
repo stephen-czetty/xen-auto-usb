@@ -156,6 +156,7 @@ class Qmp:
     def __init__(self, path: str, options: Options):
         self.__options = options
         self.__path = self.__options.qmp_socket or path
+        self.__qmp_socket = None
 
     def __repr__(self):
         return "Qmp({!r}, {!r}".format(self.__path, self.__options)
