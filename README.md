@@ -23,6 +23,9 @@ This script attempts to fix that shortcoming.
       -h, --help            show this help message and exit
       -v, --verbose         increase verbosity
       -q, --quiet           be very quiet
+      --qmp-socket QMP_SOCKET
+                            UNIX domain socket to connect to
+
 
     required arguments:
       -d DOMAIN, --domain DOMAIN
@@ -37,6 +40,8 @@ This script attempts to fix that shortcoming.
 * pyudev >= 0.21.0
 
 ### VM Setup ###
+
+#### USB Controller ####
 
 Currently, this script does not automatically create usb controllers
 on the VM, so at least one must be created either in the vm
@@ -55,6 +60,28 @@ this script will attempt to gather the correct info it needs to
 handle a detach event, but there may be circumstances where that
 will fail.
 
+#### QMP Socket (Optional) ####
+
+If you wish the script to keep an open connection to the devicemodel,
+you will need to set up an additional UNIX socket at VM startup.
+This can be accomplished by adding the following to your VM
+configuration:
+
+    device_model_args = [
+        "-chardev",
+        "socket,id=usb-attach,path=/run/xen/qmp-usb-Windows,server,nowait",
+        "-mon",
+        "chardev=usb-attach,mode=control"
+    ]
+
+You can then tell the script about this socket with the `qmp-socket`
+switch.
+
+At the moment, this isn't very useful, except maybe for a small
+performance gain.  However, in the future, using this will allow
+for better control over the monitor, as we can get domain events
+and react appropriately to them.
+
 ### Features ###
 
 * Monitors udev for device additions and removals on the specified usb
@@ -70,14 +97,12 @@ will fail.
 ### Still TODO ###
 
 * Get rid of the globals in __main__
-* Stay connected to QMP (this will affect xl functionality, so we need
-    to configure another socket.)
-  * `-chardev socket,id={id},path={path},server,nowait -mon chardev={id},mode=control`
 * Run as a daemon
   * Create a way to contact and control the daemon
 * Gracefully handle situations where the VM is not running (wait for it to come up?)
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
+* (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
 
