@@ -32,7 +32,7 @@ class QmpSocket:
         self.__socket = None
 
     def __enter__(self):
-        if self.__socket is not None:
+        if self.__socket is None:
             # noinspection PyUnresolvedReferences
             self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             self.__connect_to_qmp()
