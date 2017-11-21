@@ -28,26 +28,26 @@ class Qmp:
                             QmpSocket(self.__options, self.__path, keep_open=self.__options.qmp_socket is not None)
         return self.__qmp_socket
 
-    def __send_qmp_command(self, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
-        return self.__qmp_socket.send(json.dumps({"execute": command, "arguments": arguments}))
+    @staticmethod
+    def __send_qmp_command(sock: QmpSocket, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
+        return sock.send(json.dumps({"execute": command, "arguments": arguments}))
 
-    def __qom_list(self, path: str) -> Iterable[Dict[str, str]]:
-        result = self.__send_qmp_command("qom-list", {"path": path})
+    def __qom_list(self, sock: QmpSocket, path: str) -> Iterable[Dict[str, str]]:
+        result = self.__send_qmp_command(sock, "qom-list", {"path": path})
         if "error" in result:
             raise QmpError(result["error"])
 
         return cast(Iterable[Dict[str, str]], result["return"])
 
-    def __qom_get(self, path: str, property_name: str) -> Any:
-        result = self.__send_qmp_command("qom-get", {"path": path,
-                                                     "property": property_name})
+    def __qom_get(self, sock: QmpSocket, path: str, property_name: str) -> Any:
+        result = self.__send_qmp_command(sock, "qom-get", {"path": path, "property": property_name})
         if "error" in result:
             raise QmpError(result["error"])
 
         return result["return"]
 
-    def __get_usb_controller_ids(self) -> Iterable[int]:
-        controllers = self.__qom_list("peripheral")
+    def __get_usb_controller_ids(self, sock: QmpSocket) -> Iterable[int]:
+        controllers = self.__qom_list(sock, "peripheral")
         if controllers is None:
             return
 
@@ -57,28 +57,28 @@ class Qmp:
         for dev in (d for d in controllers if cast(str, d["type"]) in controller_types):
             yield int(cast(str, dev["name"]).split("-")[1])
 
-    def __get_usb_devices(self, controller: int) -> Iterable[XenUsb]:
-        controller_devices = self.__qom_list("xenusb-{}.0".format(controller))
+    def __get_usb_devices(self, sock: QmpSocket, controller: int) -> Iterable[XenUsb]:
+        controller_devices = self.__qom_list(sock, "xenusb-{}.0".format(controller))
         if controller_devices is None:
             return
 
         for dev in (d for d in controller_devices if cast(str, d["type"]) == "link<usb-host>"):
-            dev_path = self.__qom_get("xenusb-{}.0".format(controller), dev["name"])
+            dev_path = self.__qom_get(sock, "xenusb-{}.0".format(controller), dev["name"])
             if dev_path is None:
                 continue
 
-            port = self.__qom_get(dev_path, "port")
+            port = self.__qom_get(sock, dev_path, "port")
             if port is None:
                 continue
 
-            hostbus = self.__qom_get(dev_path, "hostbus")
-            hostaddr = self.__qom_get(dev_path, "hostaddr")
+            hostbus = self.__qom_get(sock, dev_path, "hostbus")
+            hostaddr = self.__qom_get(sock, dev_path, "hostaddr")
 
             yield XenUsb(controller, int(port), int(hostbus), int(hostaddr))
 
     def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> None:
-        with self.__get_qmp_socket():
-            result = self.__send_qmp_command("device_add",
+        with self.__get_qmp_socket() as sock:
+            result = self.__send_qmp_command(sock, "device_add",
                                              {"id": "xenusb-{}-{}".format(busnum, devnum),
                                               "driver": "usb-host",
                                               "bus": "xenusb-{}.0".format(controller),
@@ -90,24 +90,24 @@ class Qmp:
                 raise QmpError(result["error"])
 
     def detach_usb_device(self, busnum: int, devnum: int) -> None:
-        with self.__get_qmp_socket():
-            result = self.__send_qmp_command("device_del", {"id": "xenusb-{}-{}".format(busnum, devnum)})
+        with self.__get_qmp_socket() as sock:
+            result = self.__send_qmp_command(sock, "device_del", {"id": "xenusb-{}-{}".format(busnum, devnum)})
 
             if "error" in result:
                 raise QmpError(result["error"])
 
     def get_usb_host(self, controller: int, port: int) -> Optional[XenUsb]:
-        with self.__get_qmp_socket():
-            controller_devices = self.__qom_list("xenusb-{}.0".format(controller))
+        with self.__get_qmp_socket() as sock:
+            controller_devices = self.__qom_list(sock, "xenusb-{}.0".format(controller))
             if controller_devices is None:
                 return None
 
-            return next((u for u in self.__get_usb_devices(controller) if u.port == port), None)
+            return next((u for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
 
     def get_usb_devices(self) -> Iterable[XenUsb]:
-        with self.__get_qmp_socket():
-            for controller_id in self.__get_usb_controller_ids():
-                for usb_dev in self.__get_usb_devices(controller_id):
+        with self.__get_qmp_socket() as sock:
+            for controller_id in self.__get_usb_controller_ids(sock):
+                for usb_dev in self.__get_usb_devices(sock, controller_id):
                     yield usb_dev
 
     def __init__(self, path: str, options: Options):
@@ -122,7 +122,7 @@ class Qmp:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__qmp_socket is not None:
-            self.__qmp_socket.__exit__(exc_type, exc_val, exc_tb)
+            self.__qmp_socket.close()
 
 
 class QmpSocket:
@@ -140,10 +140,15 @@ class QmpSocket:
         self.__options.print_very_verbose(result)
         return json.loads(result)
 
+    def close(self):
+        self.__keep_open = False
+        self.__exit__()
+
     def __init__(self, options: Options, path: str, keep_open=False):
         self.__options = options
         self.__path = path
         self.__keep_open = keep_open
+        self.__socket = None
 
     def __enter__(self):
         if self.__socket is not None:
@@ -157,8 +162,8 @@ class QmpSocket:
 
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if not self.__keep_open:
+    def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
+        if (not self.__keep_open or exc_type is not None) and self.__socket is not None:
             self.__socket.__exit__()
             self.__socket = None
 
