@@ -14,7 +14,18 @@ sysfs_root = "/sys/bus/usb/devices"
 class DeviceMonitor:
     __context = None
 
-    def add_monitored_device(self, device_name: str) -> Device:
+    def __get_connected_devices(self, hub_device: Device) -> Dict[str, XenUsb]:
+        device_map = {}
+        for device in hub_device.devices_of_interest():
+            self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
+            dev_map = self.__domain.find_device_mapping(device.sys_name)
+            if dev_map is None:
+                dev_map = self.__domain.attach_device_to_xen(device)
+            if dev_map is not None:
+                device_map[device.sys_name] = dev_map
+        return device_map
+
+    def add_hub(self, device_name: str) -> Dict[str, XenUsb]:
         inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(sysfs_root, device_name))
 
         dev = Device(inner)
@@ -26,19 +37,7 @@ class DeviceMonitor:
         if dev not in self.__root_devices:
             self.__root_devices.append(dev)
 
-        return dev
-
-    def get_connected_devices(self, domain: XenDomain) -> Dict[str, XenUsb]:
-        device_map = {}
-        for monitored_device in self.__root_devices:
-            for device in monitored_device.devices_of_interest():
-                self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
-                dev_map = domain.find_device_mapping(device.sys_name)
-                if dev_map is None:
-                    dev_map = domain.attach_device_to_xen(device)
-                if dev_map is not None:
-                    device_map[device.sys_name] = dev_map
-        return device_map
+        return self.__get_connected_devices(dev)
 
     # This method never returns unless there's an exception.  Good?  Bad?
     def monitor_devices(self) -> None:

@@ -36,9 +36,9 @@ def remove_device(domain: XenDomain, device: Device):
                 del device_map[device.sys_name]
 
 
-def remove_disconnected_devices(domain: XenDomain, devices: Dict[str, XenUsb]):
+def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
     for dev in list(domain.get_attached_devices()):
-        if dev not in devices.values():
+        if dev not in devices:
             domain.detach_device_from_xen(dev)
 
 
@@ -47,21 +47,20 @@ def main(args: List[str]) -> None:
     opts = Options(args)
 
     with XenDomain(opts) as xen_domain:
-        monitor = DeviceMonitor(opts, xen_domain)
-        for h in opts.hubs:
-            monitor.add_monitored_device(h)
+        with DeviceMonitor(opts, xen_domain) as monitor:
+            monitor.device_added += partial(add_device, xen_domain)
+            monitor.device_removed += partial(remove_device, xen_domain)
 
-        monitor.device_added += partial(add_device, xen_domain)
-        monitor.device_removed += partial(remove_device, xen_domain)
+            try:
+                with device_map_lock:
+                    for h in opts.hubs:
+                        device_map.update(monitor.add_hub(h))
+                    remove_disconnected_devices(xen_domain, device_map.values())
 
-        try:
-            with device_map_lock:
-                device_map = monitor.get_connected_devices(xen_domain)
-                remove_disconnected_devices(xen_domain, device_map)
-            monitor.monitor_devices()
-            monitor.wait()
-        except KeyboardInterrupt:
-            pass
+                monitor.monitor_devices()
+                monitor.wait()
+            except KeyboardInterrupt:
+                pass
 
 
 if __name__ == "__main__":
