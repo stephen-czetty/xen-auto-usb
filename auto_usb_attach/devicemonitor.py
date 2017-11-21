@@ -48,3 +48,6 @@ class DeviceMonitor:
 
         self.device_added = Event()
         self.device_removed = Event()
+
+    def __repr__(self):
+        return "DeviceMonitor({!r}, {!r})".format(self.__options, self.__domain)

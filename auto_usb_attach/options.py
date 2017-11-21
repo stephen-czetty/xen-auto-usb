@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import argparse
 
 
@@ -22,6 +22,10 @@ class Options:
     @property
     def hubs(self) -> List[str]:
         return self.__hubs
+
+    @property
+    def qmp_socket(self) -> Optional[str]:
+        return self.__qmp_socket
 
     def print_very_verbose(self, string: str):
         if self.is_very_verbose:
@@ -48,6 +52,8 @@ class Options:
         required_group.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
                                                         "can be specified multiple times", type=str,
                                     action="append", required=True)
+        parser.add_argument("--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
+                            default=None)
 
         return parser
 
@@ -57,10 +63,15 @@ class Options:
         self.__verbosity = -1 if parsed.quiet else parsed.verbose
         self.__domain = parsed.domain
         self.__hubs = parsed.hub
+        self.__qmp_socket = parsed.qmp_socket
+        self.__args = args
 
         self.print_very_verbose("Command line arguments:")
-        self.print_very_verbose("Verbosity: {0}".format("Very Verbose" if self.is_very_verbose else
-                                                        "Verbose" if self.is_verbose else
-                                                        "Quiet" if self.is_quiet else "Normal"))
-        self.print_very_verbose("Domain: {0}".format(self.domain))
-        self.print_very_verbose("Hubs: {0}".format(self.hubs))
+        self.print_very_verbose("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
+                                                       "Verbose" if self.is_verbose else
+                                                       "Quiet" if self.is_quiet else "Normal"))
+        self.print_very_verbose("Domain: {}".format(self.domain))
+        self.print_very_verbose("Hubs: {}".format(self.hubs))
+
+    def __repr__(self):
+        return "Options({!r})".format(self.__args)

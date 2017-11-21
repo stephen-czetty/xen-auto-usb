@@ -19,3 +19,6 @@ class Event:
 
     def __len__(self):
         return len(self.__handlers)
+
+    def __repr__(self):
+        return "Event()"

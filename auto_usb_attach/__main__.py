@@ -54,19 +54,18 @@ def main(args: List[str]) -> None:
     global opts, device_map
     opts = Options(args)
 
-    xen_domain = XenDomain(opts)
+    with XenDomain(opts) as xen_domain:
+        monitor = DeviceMonitor(opts, xen_domain)
+        root_devices = [monitor.add_monitored_device(x) for x in opts.hubs]
+        monitor.device_added += partial(add_device, xen_domain, root_devices)
+        monitor.device_removed += partial(remove_device, xen_domain)
 
-    monitor = DeviceMonitor(opts, xen_domain)
-    root_devices = [monitor.add_monitored_device(x) for x in opts.hubs]
-    monitor.device_added += partial(add_device, xen_domain, root_devices)
-    monitor.device_removed += partial(remove_device, xen_domain)
-
-    try:
-        device_map = get_connected_devices(xen_domain, root_devices)
-        remove_disconnected_devices(xen_domain, device_map)
-        monitor.monitor_devices()
-    except KeyboardInterrupt:
-        pass
+        try:
+            device_map = get_connected_devices(xen_domain, root_devices)
+            remove_disconnected_devices(xen_domain, device_map)
+            monitor.monitor_devices()
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

@@ -50,4 +50,4 @@ class Device:
         self.__inner = inner
 
     def __repr__(self):
-        return self.__inner.__repr__()
+        return "Device({!r})".format(self.__inner)
