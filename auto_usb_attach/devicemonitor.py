@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, cast, Iterable, Optional
 
 from .xenusb import XenUsb
 from .device import Device
@@ -39,12 +39,14 @@ class DeviceMonitor:
 
         return self.__get_connected_devices(dev)
 
-    # This method never returns unless there's an exception.  Good?  Bad?
-    def monitor_devices(self) -> None:
+    async def monitor_devices(self) -> None:
         monitor = pyudev.Monitor.from_netlink(self.__context)
         monitor.filter_by('usb')
 
-        def monitor_callback(device: pyudev.Device) -> None:
+        for device in cast(Iterable[Optional[pyudev.Device]], iter(monitor.poll, None)):
+            if device is None:
+                return
+
             device = Device(device)
             self.__options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
             if device.action == "add":
@@ -52,13 +54,6 @@ class DeviceMonitor:
                     self.device_added(device)
             elif device.action == "remove":
                 self.device_removed(device)
-
-        self.__observer = pyudev.MonitorObserver(monitor, callback=monitor_callback)
-        self.__observer.start()
-
-    def wait(self):
-        if self.__observer is not None:
-            self.__observer.join()
 
     def __init__(self, opts: Options, xen_domain: XenDomain):
         self.__context = pyudev.Context()
@@ -79,5 +74,6 @@ class DeviceMonitor:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__observer is not None:
             self.__observer.stop()
+            self.__observer.join()
             self.__started = False
             self.__observer = None
