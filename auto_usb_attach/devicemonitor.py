@@ -60,7 +60,6 @@ class DeviceMonitor:
         self.__options = opts
         self.__domain = xen_domain
         self.__root_devices = []
-        self.__observer = None
 
         self.device_added = Event()
         self.device_removed = Event()
@@ -68,12 +67,3 @@ class DeviceMonitor:
     def __repr__(self):
         return "DeviceMonitor({!r}, {!r})".format(self.__options, self.__domain)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.__observer is not None:
-            self.__observer.stop()
-            self.__observer.join()
-            self.__started = False
-            self.__observer = None

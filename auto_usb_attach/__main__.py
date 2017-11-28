@@ -48,19 +48,19 @@ class MainThread(Thread):
     def run(self):
         async def callback():
             with XenDomain(self.__opts) as xen_domain:
-                with DeviceMonitor(self.__opts, xen_domain) as monitor:
-                    monitor.device_added += partial(self.add_device, xen_domain)
-                    monitor.device_removed += partial(self.remove_device, xen_domain)
+                monitor = DeviceMonitor(self.__opts, xen_domain)
+                monitor.device_added += partial(self.add_device, xen_domain)
+                monitor.device_removed += partial(self.remove_device, xen_domain)
 
-                    try:
-                        with self.__device_map_lock:
-                            for h in self.__opts.hubs:
-                                self.__device_map.update(monitor.add_hub(h))
-                            await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+                try:
+                    with self.__device_map_lock:
+                        for h in self.__opts.hubs:
+                            self.__device_map.update(monitor.add_hub(h))
+                        await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
 
-                        await monitor.monitor_devices()
-                    except KeyboardInterrupt:
-                        pass
+                    await monitor.monitor_devices()
+                except KeyboardInterrupt:
+                    pass
 
         self.__event_loop.run_until_complete(callback)
         self.__event_loop.close()
