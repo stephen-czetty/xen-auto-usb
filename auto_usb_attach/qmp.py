@@ -16,6 +16,7 @@ class QmpSocket:
             self.__connect_info = json.loads(greeting)
             if "error" in self.__connect_info:
                 raise QmpError(self.__connect_info)
+            await self.send(json.dumps({"execute": "qmp_capabilities"}))
             self.__connected = True
 
         return self.__connect_info
@@ -23,7 +24,7 @@ class QmpSocket:
     async def send(self, data: str) -> Dict[str, Any]:
         await self.__connect_to_qmp()
         self.__options.print_very_verbose(data)
-        self.__writer.write(bytes(data))
+        self.__writer.write(bytes(data, "utf-8"))
         result = await self.__reader.readline()
         self.__options.print_very_verbose(result)
         return json.loads(result)
