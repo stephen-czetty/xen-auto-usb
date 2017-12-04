@@ -20,10 +20,10 @@ class QmpSocket:
 
         return self.__connect_info
 
-    async def send(self, data) -> Dict[str, Any]:
+    async def send(self, data: str) -> Dict[str, Any]:
         await self.__connect_to_qmp()
         self.__options.print_very_verbose(data)
-        self.__writer.write(data)
+        self.__writer.write(bytes(data))
         result = await self.__reader.readline()
         self.__options.print_very_verbose(result)
         return json.loads(result)
