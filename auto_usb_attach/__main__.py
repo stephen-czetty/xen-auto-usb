@@ -67,10 +67,14 @@ class MainThread(Thread):
 
     def __init__(self, args):
         super().__init__()
+        self.__args = args
         self.__opts = Options(args)
         self.__device_map: Dict[str, XenUsb] = {}
         self.__device_map_lock = Lock()
         self.__event_loop = asyncio.get_event_loop()
+
+    def __repr__(self):
+        return "MainThread({!r})".format(self.__args)
 
 
 def main(args: List[str]) -> None:

@@ -174,7 +174,7 @@ class Qmp:
         self.__qmp_socket = None
 
     def __repr__(self):
-        return "Qmp({!r}, {!r}".format(self.__path, self.__options)
+        return "Qmp({!r}, {!r})".format(self.__path, self.__options)
 
     def __enter__(self):
         return self
