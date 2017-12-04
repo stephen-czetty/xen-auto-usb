@@ -4,7 +4,7 @@ from .xenusb import XenUsb
 from .device import Device
 from .options import Options
 from .xendomain import XenDomain
-from .event import Event
+from .asyncevent import AsyncEvent
 
 import pyudev
 
@@ -61,9 +61,8 @@ class DeviceMonitor:
         self.__domain = xen_domain
         self.__root_devices = []
 
-        self.device_added = Event()
-        self.device_removed = Event()
+        self.device_added = AsyncEvent()
+        self.device_removed = AsyncEvent()
 
     def __repr__(self):
         return "DeviceMonitor({!r}, {!r})".format(self.__options, self.__domain)
-
