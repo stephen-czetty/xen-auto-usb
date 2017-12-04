@@ -1,6 +1,7 @@
 import json
 import asyncio
-from typing import Dict, Optional, cast, Iterable, Any, AsyncIterable
+from typing import Dict, Optional, cast, Iterable, Any
+from collections import AsyncIterable
 
 from .options import Options
 from .xenusb import XenUsb
@@ -99,7 +100,7 @@ class Qmp:
 
         return result["return"]
 
-    async def __get_usb_controller_ids(self, sock: QmpSocket) -> AsyncIterable[int]:
+    async def __get_usb_controller_ids(self, sock: QmpSocket) -> AsyncIterable:
         controllers = await self.__qom_list(sock, "peripheral")
         if controllers is None:
             return
@@ -110,7 +111,7 @@ class Qmp:
         for dev in (d for d in controllers if cast(str, d["type"]) in controller_types):
             yield int(cast(str, dev["name"]).split("-")[1])
 
-    async def __get_usb_devices(self, sock: QmpSocket, controller: int) -> AsyncIterable[XenUsb]:
+    async def __get_usb_devices(self, sock: QmpSocket, controller: int) -> AsyncIterable:
         controller_devices = await self.__qom_list(sock, "xenusb-{}.0".format(controller))
         if controller_devices is None:
             return
@@ -155,9 +156,12 @@ class Qmp:
             if controller_devices is None:
                 return None
 
-            return next((u async for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
+            async for u in self.__get_usb_devices(sock, controller):
+                if u.port == port:
+                    return u
+            # return anext((u async for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
 
-    async def get_usb_devices(self) -> AsyncIterable[XenUsb]:
+    async def get_usb_devices(self) -> AsyncIterable:
         with self.__get_qmp_socket() as sock:
             async for controller_id in self.__get_usb_controller_ids(sock):
                 async for usb_dev in self.__get_usb_devices(sock, controller_id):
