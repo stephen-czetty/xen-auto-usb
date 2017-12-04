@@ -55,7 +55,7 @@ class MainThread(Thread):
                 try:
                     with self.__device_map_lock:
                         for h in self.__opts.hubs:
-                            self.__device_map.update(monitor.add_hub(h))
+                            self.__device_map.update(await monitor.add_hub(h))
                         await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
 
                     await monitor.monitor_devices()
