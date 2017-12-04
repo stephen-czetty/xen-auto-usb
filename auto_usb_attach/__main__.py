@@ -29,7 +29,7 @@ class MainThread(Thread):
 
     def add_device(self, domain: XenDomain, device: Device):
         self.__opts.print_very_verbose("Adding device {}".format(device))
-        self.__event_loop.create_task(partial(self.__do_add_device, domain, device)).result()
+        self.__event_loop.run_until_complete(partial(self.__do_add_device, domain, device))
 
     async def __do_remove_device(self, domain: XenDomain, device: Device):
         if device.sys_name in self.__device_map:
@@ -40,7 +40,7 @@ class MainThread(Thread):
 
     def remove_device(self, domain: XenDomain, device: Device):
         self.__opts.print_very_verbose("Removing device {}".format(device))
-        self.__event_loop.create_task(partial(self.__do_remove_device, domain, device)).result()
+        self.__event_loop.run_until_complete(partial(self.__do_remove_device, domain, device))
 
     @staticmethod
     async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
