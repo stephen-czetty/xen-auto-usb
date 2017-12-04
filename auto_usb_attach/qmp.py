@@ -160,6 +160,7 @@ class Qmp:
                 if u.port == port:
                     return u
             # return anext((u async for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
+            return None
 
     async def get_usb_devices(self) -> AsyncIterable:
         with self.__get_qmp_socket() as sock:
