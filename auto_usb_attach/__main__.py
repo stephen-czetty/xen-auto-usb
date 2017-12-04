@@ -16,7 +16,7 @@ from .xenusb import XenUsb
 
 class MainThread(Thread):
     async def __do_add_device(self, domain: XenDomain, device: Device):
-        self._opts.print_very_verbose("Adding device: {}".format(device))
+        self.__opts.print_very_verbose("Adding device: {}".format(device))
         if device.sys_name not in self.__device_map:
             self.__opts.print_verbose("Device added: {}".format(device))
 
@@ -29,7 +29,7 @@ class MainThread(Thread):
 
     def add_device(self, domain: XenDomain, device: Device):
         self.__opts.print_very_verbose("Adding device {}".format(device))
-        self.__event_loop.call_soon(self.__do_add_device, domain, device)
+        self.__event_loop.call_soon(self.__do_add_device, domain, device).result()
 
     async def __do_remove_device(self, domain: XenDomain, device: Device):
         if device.sys_name in self.__device_map:
@@ -40,7 +40,7 @@ class MainThread(Thread):
 
     def remove_device(self, domain: XenDomain, device: Device):
         self.__opts.print_very_verbose("Removing device {}".format(device))
-        self.__event_loop.call_soon(self.__do_remove_device, domain, device)
+        self.__event_loop.call_soon(self.__do_remove_device, domain, device).result()
 
     @staticmethod
     async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
