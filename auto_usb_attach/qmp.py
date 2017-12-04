@@ -11,9 +11,8 @@ class QmpSocket:
         if not self.__connected:
             self.__options.print_very_verbose("Connecting to QMP")
             self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
-            greeting = await self.__reader.readline()
-            self.__options.print_very_verbose(greeting)
-            self.__connect_info = json.loads(greeting)
+            self.__connect_info = await self.receive_line()
+
             if "error" in self.__connect_info:
                 raise QmpError(self.__connect_info)
             self.__connected = True
@@ -25,9 +24,13 @@ class QmpSocket:
         await self.__connect_to_qmp()
         self.__options.print_very_verbose(data)
         self.__writer.write(bytes(data, "utf-8"))
-        result = await self.__reader.readline()
-        self.__options.print_very_verbose(result)
-        return json.loads(result)
+        return await self.receive_line()
+
+    async def receive_line(self) -> Dict[str, Any]:
+        data = await self.__reader.readline()
+        data = str(data, "utf-8")
+        self.__options.print_very_verbose(data)
+        return json.loads(data)
 
     def close(self):
         self.__keep_open = False
