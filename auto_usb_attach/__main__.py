@@ -28,7 +28,7 @@ class MainThread(Thread):
                 pass
 
     async def remove_device(self, domain: XenDomain, device: Device):
-        self.__opts.print_very_verbose("remove_device event fired:".format(device))
+        self.__opts.print_very_verbose("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
             self.__opts.print_verbose("Removing device: {}".format(device.device_path))
             if await domain.detach_device_from_xen(self.__device_map[device.sys_name]):
