@@ -73,9 +73,9 @@ class MainThread(Thread):
         self.__event_loop = asyncio.get_event_loop()
 
 
-def main():
-    MainThread(sys.argv[1:]).run()
+def main(args: List[str]) -> None:
+    MainThread(args).run()
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
