@@ -46,7 +46,7 @@ class MainThread(Thread):
     async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
         async for dev in domain.get_attached_devices():
             if dev not in devices:
-                domain.detach_device_from_xen(dev)
+                await domain.detach_device_from_xen(dev)
 
     def run(self):
         async def callback():
