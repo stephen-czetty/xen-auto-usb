@@ -1,6 +1,6 @@
 import json
 import asyncio
-from typing import Dict, Optional, cast, Iterable, Any, Awaitable
+from typing import Dict, Optional, cast, Iterable, Any, Awaitable, AsyncIterable
 
 from .options import Options
 from .xenusb import XenUsb
@@ -153,7 +153,7 @@ class Qmp:
 
             return next((u for u in await self.__get_usb_devices(sock, controller) if u.port == port), None)
 
-    async def get_usb_devices(self) -> Iterable[XenUsb]:
+    async def get_usb_devices(self) -> AsyncIterable[XenUsb]:
         with self.__get_qmp_socket() as sock:
             for controller_id in await self.__get_usb_controller_ids(sock):
                 for usb_dev in await self.__get_usb_devices(sock, controller_id):

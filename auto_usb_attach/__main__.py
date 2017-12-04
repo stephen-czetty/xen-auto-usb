@@ -41,7 +41,7 @@ class MainThread(Thread):
 
     @staticmethod
     async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
-        for dev in list(await domain.get_attached_devices()):
+        async for dev in domain.get_attached_devices():
             if dev not in devices:
                 domain.detach_device_from_xen(dev)
 
@@ -62,11 +62,11 @@ class MainThread(Thread):
                 except KeyboardInterrupt:
                     pass
 
-        self.__event_loop.run_until_complete(callback)
+        self.__event_loop.run_until_complete(callback())
         self.__event_loop.close()
 
     def __init__(self, args):
-        super().__init__(args)
+        super().__init__()
         self.__opts = Options(args)
         self.__device_map: Dict[str, XenUsb] = {}
         self.__device_map_lock = Lock()
