@@ -16,8 +16,8 @@ class QmpSocket:
             self.__connect_info = json.loads(greeting)
             if "error" in self.__connect_info:
                 raise QmpError(self.__connect_info)
-            await self.send(json.dumps({"execute": "qmp_capabilities"}))
             self.__connected = True
+            await self.send(json.dumps({"execute": "qmp_capabilities"}))
 
         return self.__connect_info
 
