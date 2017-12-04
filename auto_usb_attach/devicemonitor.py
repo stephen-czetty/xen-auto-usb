@@ -51,9 +51,9 @@ class DeviceMonitor:
             self.__options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
             if device.action == "add":
                 if device.is_a_device_we_care_about(self.__root_devices):
-                    self.device_added(device)
+                    await self.device_added.fire(device)
             elif device.action == "remove":
-                self.device_removed(device)
+                await self.device_removed.fire(device)
 
     def __init__(self, opts: Options, xen_domain: XenDomain):
         self.__context = pyudev.Context()

@@ -13,9 +13,13 @@ class Event:
         self.__handlers.remove(handler)
         return self
 
-    def __call__(self, *args, **kwargs):
+    async def fire(self, *args, **kwargs):
         for handler in self.__handlers:
-            handler(*args, **kwargs)
+            await handler(*args, **kwargs)
+
+    def __await__(self):
+        for async_handler in self.__handlers:
+            async_handler().__await__()
 
     def __len__(self):
         return len(self.__handlers)

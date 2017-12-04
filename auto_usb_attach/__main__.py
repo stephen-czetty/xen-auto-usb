@@ -27,9 +27,9 @@ class MainThread(Thread):
             except XenError:
                 pass
 
-    def add_device(self, domain: XenDomain, device: Device):
+    async def add_device(self, domain: XenDomain, device: Device):
         self.__opts.print_very_verbose("Adding device {}".format(device))
-        self.__event_loop.run_until_complete(self.__do_add_device(domain, device))
+        await self.__do_add_device(domain, device)
 
     async def __do_remove_device(self, domain: XenDomain, device: Device):
         if device.sys_name in self.__device_map:
@@ -38,9 +38,9 @@ class MainThread(Thread):
                 with self.__device_map_lock:
                     del self.__device_map[device.sys_name]
 
-    def remove_device(self, domain: XenDomain, device: Device):
+    async def remove_device(self, domain: XenDomain, device: Device):
         self.__opts.print_very_verbose("Removing device {}".format(device))
-        self.__event_loop.run_until_complete(self.__do_remove_device(domain, device))
+        await self.__do_remove_device(domain, device)
 
     @staticmethod
     async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
