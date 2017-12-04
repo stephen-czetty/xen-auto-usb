@@ -1,5 +1,6 @@
 from functools import partial
-from typing import Tuple, Optional, Callable, Iterable, AsyncIterable
+from typing import Tuple, Optional, Callable, Iterable
+from collections import AsyncIterable
 import pyxs
 import re
 
@@ -120,7 +121,7 @@ class XenDomain:
                         return usb_host
         return None
 
-    def get_attached_devices(self) -> AsyncIterable[XenUsb]:
+    def get_attached_devices(self) -> AsyncIterable:
         return self.__qmp.get_usb_devices()
 
     def __init__(self, opts: Options):

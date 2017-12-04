@@ -16,8 +16,9 @@ from .xenusb import XenUsb
 
 class MainThread(Thread):
     async def __do_add_device(self, domain: XenDomain, device: Device):
+        self._opts.print_very_verbose("Adding device: {}".format(device))
         if device.sys_name not in self.__device_map:
-            self.__opts.print_verbose("Device added: {0}".format(device))
+            self.__opts.print_verbose("Device added: {}".format(device))
 
             try:
                 dev_map = await domain.attach_device_to_xen(device)
@@ -27,16 +28,18 @@ class MainThread(Thread):
                 pass
 
     def add_device(self, domain: XenDomain, device: Device):
+        self.__opts.print_very_verbose("Adding device {}".format(device))
         self.__event_loop.call_soon(self.__do_add_device, domain, device)
 
     async def __do_remove_device(self, domain: XenDomain, device: Device):
         if device.sys_name in self.__device_map:
-            self.__opts.print_verbose("Removing device: {0}".format(device))
+            self.__opts.print_verbose("Removing device: {}".format(device))
             if await domain.detach_device_from_xen(self.__device_map[device.sys_name]):
                 with self.__device_map_lock:
                     del self.__device_map[device.sys_name]
 
     def remove_device(self, domain: XenDomain, device: Device):
+        self.__opts.print_very_verbose("Removing device {}".format(device))
         self.__event_loop.call_soon(self.__do_remove_device, domain, device)
 
     @staticmethod
