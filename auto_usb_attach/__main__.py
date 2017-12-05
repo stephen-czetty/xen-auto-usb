@@ -63,8 +63,6 @@ class MainThread(Thread):
             self.__event_loop.run_forever()
         except KeyboardInterrupt:
             pass
-        finally:
-            self.__event_loop.close()
 
     def __init__(self, args):
         super().__init__()
