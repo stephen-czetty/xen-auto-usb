@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, cast, Iterable, Optional
 
 from .xenusb import XenUsb
@@ -43,9 +44,11 @@ class DeviceMonitor:
         monitor = pyudev.Monitor.from_netlink(self.__context)
         monitor.filter_by('usb')
 
-        for device in cast(Iterable[Optional[pyudev.Device]], iter(monitor.poll, None)):
+        while True:
+            device = monitor.poll(0)
             if device is None:
-                return
+                await asyncio.sleep(1.0)
+                continue
 
             device = Device(device)
             self.__options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
