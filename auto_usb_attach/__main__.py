@@ -1,7 +1,6 @@
 #!/usr/bin/env /usr/bin/python3.6
 
 import sys
-from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from typing import List, Dict
 from threading import Lock, Thread
@@ -55,14 +54,17 @@ class MainThread(Thread):
                             self.__device_map.update(await monitor.add_hub(h))
                         await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
 
-                    executor = ThreadPoolExecutor(max_workers=1)
-                    await self.__event_loop.run_in_executor(executor, monitor.monitor_devices)
+                    await monitor.monitor_devices()
                 except KeyboardInterrupt:
                     pass
 
-        asyncio.ensure_future(usb_monitor())
-        self.__event_loop.run_forever()
-        self.__event_loop.close()
+        try:
+            asyncio.ensure_future(usb_monitor())
+            self.__event_loop.run_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            self.__event_loop.close()
 
     def __init__(self, args):
         super().__init__()
