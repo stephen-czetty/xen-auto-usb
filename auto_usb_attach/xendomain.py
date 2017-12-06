@@ -22,15 +22,6 @@ pyxs.client._re_7bit_ascii = re.compile(b"^[\x00\x20-\x7f]*$")
 # /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
 class XenDomain:
     @staticmethod
-    def __get_domain_id(name: str) -> int:
-        with pyxs.Client() as c:
-            for domain_id in XenDomain.__get_xs_list(c, "/local/domain"):
-                path = "/local/domain/{}/name".format(domain_id)
-                if XenDomain.__get_xs_value(c, path) == name:
-                    return int(domain_id)
-            raise NameError("Could not find domain {}".format(name))
-
-    @staticmethod
     def __set_xs_value(xs_client: pyxs.Client, xs_path: str, xs_value: str) -> None:
         xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
@@ -76,6 +67,15 @@ class XenDomain:
                         return int(controller), int(port)
 
             raise XenError(Exception("No open device slot"))
+
+    @staticmethod
+    def get_domain_id(name: str) -> int:
+        with pyxs.Client() as c:
+            for domain_id in XenDomain.__get_xs_list(c, "/local/domain"):
+                path = "/local/domain/{}/name".format(domain_id)
+                if XenDomain.__get_xs_value(c, path) == name:
+                    return int(domain_id)
+            raise NameError("Could not find domain {}".format(name))
 
     async def attach_device_to_xen(self, dev: Device) -> XenUsb:
         # Find an open controller and slot
@@ -124,15 +124,15 @@ class XenDomain:
     def get_attached_devices(self) -> AsyncIterable:
         return self.__qmp.get_usb_devices()
 
-    def __init__(self, opts: Options):
-        self.__domain_id = XenDomain.__get_domain_id(opts.domain)
+    def __init__(self, opts: Options, qmp: Qmp):
+        self.__domain_id = XenDomain.get_domain_id(opts.domain)
         self.__options = opts
+        self.__qmp = qmp
 
     def __repr__(self):
-        return "XenDomain({!r})".format(self.__options)
+        return "XenDomain({!r}, {!r})".format(self.__options, self.__qmp)
 
     def __enter__(self):
-        self.__qmp = Qmp("/run/xen/qmp-libxl-{}".format(self.__domain_id), self.__options)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

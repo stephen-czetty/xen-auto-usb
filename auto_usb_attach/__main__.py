@@ -7,6 +7,7 @@ from threading import Lock, Thread
 
 import asyncio
 
+from auto_usb_attach.qmp import Qmp
 from .options import Options
 from .xendomain import XenDomain, XenError
 from .devicemonitor import DeviceMonitor
@@ -16,9 +17,9 @@ from .xenusb import XenUsb
 
 class MainThread(Thread):
     async def add_device(self, domain: XenDomain, device: Device):
-        self.__opts.print_very_verbose("add_device event fired: {}".format(device))
+        self.__options.print_very_verbose("add_device event fired: {}".format(device))
         if device.sys_name not in self.__device_map:
-            self.__opts.print_verbose("Device added: {}".format(device.device_path))
+            self.__options.print_verbose("Device added: {}".format(device.device_path))
 
             try:
                 dev_map = await domain.attach_device_to_xen(device)
@@ -28,9 +29,9 @@ class MainThread(Thread):
                 pass
 
     async def remove_device(self, domain: XenDomain, device: Device):
-        self.__opts.print_very_verbose("remove_device event fired: {}".format(device))
+        self.__options.print_very_verbose("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
-            self.__opts.print_verbose("Removing device: {}".format(device.device_path))
+            self.__options.print_verbose("Removing device: {}".format(device.device_path))
             if await domain.detach_device_from_xen(self.__device_map[device.sys_name]):
                 with self.__device_map_lock:
                     del self.__device_map[device.sys_name]
@@ -42,15 +43,17 @@ class MainThread(Thread):
                 await domain.detach_device_from_xen(dev)
 
     def run(self):
+        qmp = Qmp("/run/xen/qmp-libxl-{}".format(XenDomain.get_domain_id(self.__options.domain)), self.__options)
+
         async def usb_monitor():
-            with XenDomain(self.__opts) as xen_domain:
-                monitor = DeviceMonitor(self.__opts, xen_domain)
+            with XenDomain(self.__options, qmp) as xen_domain:
+                monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.add_device, xen_domain)
                 monitor.device_removed += partial(self.remove_device, xen_domain)
 
                 try:
                     with self.__device_map_lock:
-                        for h in self.__opts.hubs:
+                        for h in self.__options.hubs:
                             self.__device_map.update(await monitor.add_hub(h))
                         await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
 
@@ -60,6 +63,7 @@ class MainThread(Thread):
 
         try:
             asyncio.ensure_future(usb_monitor())
+            asyncio.ensure_future(qmp.monitor_domain())
             self.__event_loop.run_forever()
         except KeyboardInterrupt:
             pass
@@ -67,7 +71,7 @@ class MainThread(Thread):
     def __init__(self, args):
         super().__init__()
         self.__args = args
-        self.__opts = Options(args)
+        self.__options = Options(args)
         self.__device_map: Dict[str, XenUsb] = {}
         self.__device_map_lock = Lock()
         self.__event_loop = asyncio.get_event_loop()

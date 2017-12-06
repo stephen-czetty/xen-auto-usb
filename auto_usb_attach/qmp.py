@@ -12,7 +12,7 @@ class QmpSocket:
         if not self.__connected:
             self.__options.print_very_verbose("Connecting to QMP")
             self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
-            self.__connect_info = await self.receive_line()
+            self.__connect_info = await self.__receive_line()
 
             if "error" in self.__connect_info:
                 raise QmpError(self.__connect_info)
@@ -25,9 +25,16 @@ class QmpSocket:
         await self.__connect_to_qmp()
         self.__options.print_very_verbose(data)
         self.__writer.write(bytes(data, "utf-8"))
-        return await self.receive_line()
+        return await self.receive()
 
-    async def receive_line(self) -> Dict[str, Any]:
+    async def receive(self):
+        if self.__monitoring:
+            priority, data = await self.__monitor_queue.get()
+            return data
+
+        return await self.__receive_line()
+
+    async def __receive_line(self) -> Dict[str, Any]:
         data = await self.__reader.readline()
         data = str(data, "utf-8")
         self.__options.print_very_verbose(data)
@@ -37,6 +44,22 @@ class QmpSocket:
         self.__keep_open = False
         self.__exit__()
 
+    async def monitor(self):
+        if self.__monitoring:
+            raise QmpError({"error": "Already monitoring"})
+
+        self.__monitoring = True
+        self.__monitor_queue = asyncio.PriorityQueue()
+        while True:
+            try:
+                data = await asyncio.wait_for(self.__receive_line(), .1)
+                priority = 0 if ("error", "result") in data else 1
+                await self.__monitor_queue.put((priority, data))
+            except TimeoutError:
+                pass
+
+            await asyncio.sleep(1.0)
+
     def __init__(self, options: Options, path: str):
         self.__options = options
         self.__path = options.qmp_socket or path
@@ -45,6 +68,8 @@ class QmpSocket:
         self.__reader = None
         self.__writer = None
         self.__connect_info = {}
+        self.__monitoring = False
+        self.__monitor_queue = None
 
     def __repr__(self):
         return "QmpSocket({!r}, {!r})".format(self.__options, self.__path)
@@ -167,6 +192,13 @@ class Qmp:
             async for controller_id in self.__get_usb_controller_ids(sock):
                 async for usb_dev in self.__get_usb_devices(sock, controller_id):
                     yield usb_dev
+
+    async def monitor_domain(self) -> None:
+        if self.__options.qmp_socket is None:
+            raise QmpError({"error": "Cannot monitor domain without a dedicated UNIX socket"})
+
+        with self.__get_qmp_socket() as sock:
+            await sock.monitor()
 
     def __init__(self, path: str, options: Options):
         super().__init__()
