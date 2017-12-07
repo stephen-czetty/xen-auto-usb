@@ -34,6 +34,8 @@ class QmpSocket:
         await self.__connect_to_qmp()
         self.__options.print_very_verbose(data)
         self.__writer.write(bytes(data, "utf-8"))
+        # Give Qmp time to respond.
+        await asyncio.sleep(0.1)
         return await self.receive()
 
     async def receive(self):
