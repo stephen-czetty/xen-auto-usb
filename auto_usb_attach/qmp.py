@@ -6,6 +6,8 @@ from collections import AsyncIterable
 from .options import Options
 from .xenusb import XenUsb
 
+sleep_time = 0.5
+
 
 class QmpSocket:
     async def __connect_to_qmp(self) -> Dict[str, Any]:
@@ -35,7 +37,7 @@ class QmpSocket:
 
     async def receive(self):
         if self.__monitoring:
-            self.__options.print_very_verbose("Getting line from monitor_queue")
+            self.__options.print_debug("Getting record from queue")
             priority, data = await self.__monitor_queue.get()
             return data
 
@@ -57,18 +59,17 @@ class QmpSocket:
 
         self.__monitoring = True
         self.__monitor_queue = asyncio.PriorityQueue()
-        self.__options.print_very_verbose("Connecting to qmp")
+        self.__options.print_debug("Connecting to QMP inside of monitor()")
         await self.__connect_to_qmp()
         while True:
-            self.__options.print_very_verbose("Looping in monitor...")
             try:
                 data = await asyncio.wait_for(self.__receive_line(), .1)
                 priority = 0 if ("error", "result") in data else 1
                 await self.__monitor_queue.put((priority, data))
-            except TimeoutError:
+            except asyncio.futures.TimeoutError:
                 self.__options.print_very_verbose("Timeout.")
 
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(sleep_time)
 
     def __init__(self, options: Options, path: str):
         self.__options = options
