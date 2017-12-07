@@ -10,14 +10,19 @@ from .xenusb import XenUsb
 class QmpSocket:
     async def __connect_to_qmp(self) -> Dict[str, Any]:
         if not self.__connected:
-            self.__options.print_very_verbose("Connecting to QMP")
-            self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
-            self.__connect_info = await self.__receive_line()
+            try:
+                await self.__connect_lock.acquire()
+                if not self.__connected:
+                    self.__options.print_very_verbose("Connecting to QMP")
+                    self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
+                    self.__connect_info = await self.__receive_line()
 
-            if "error" in self.__connect_info:
-                raise QmpError(self.__connect_info)
-            self.__connected = True
-            await self.send(json.dumps({"execute": "qmp_capabilities"}))
+                    if "error" in self.__connect_info:
+                        raise QmpError(self.__connect_info)
+                    self.__connected = True
+                    await self.send(json.dumps({"execute": "qmp_capabilities"}))
+            finally:
+                self.__connect_lock.release()
 
         return self.__connect_info
 
@@ -71,6 +76,7 @@ class QmpSocket:
         self.__connect_info = {}
         self.__monitoring = False
         self.__monitor_queue = None
+        self.__connect_lock = asyncio.Lock()
 
     def __repr__(self):
         return "QmpSocket({!r}, {!r})".format(self.__options, self.__path)
