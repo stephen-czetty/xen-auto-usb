@@ -41,15 +41,17 @@ class QmpSocket:
             self.__options.print_debug("Getting record from queue")
             priority, data = await self.__monitor_queue.get()
             self.__monitor_queue.task_done()
-            self.__options.print_debug("Got record: {!r}".format(data))
-            return data
+            self.__options.print_very_verbose("{!r}".format(data))
+        else:
+            data = await self.__receive_line()
+            self.__options.print_very_verbose("{!r}".format(data))
 
-        return await self.__receive_line()
+        return data
 
     async def __receive_line(self) -> Dict[str, Any]:
         data = await self.__reader.readline()
         data = str(data, "utf-8")
-        self.__options.print_very_verbose(data)
+        self.__options.print_debug(data)
         return json.loads(data)
 
     def close(self):
