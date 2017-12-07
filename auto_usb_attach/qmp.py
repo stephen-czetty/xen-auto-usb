@@ -50,6 +50,7 @@ class QmpSocket:
 
         self.__monitoring = True
         self.__monitor_queue = asyncio.PriorityQueue()
+        await self.__connect_to_qmp()
         while True:
             try:
                 data = await asyncio.wait_for(self.__receive_line(), .1)
