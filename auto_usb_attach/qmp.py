@@ -34,6 +34,7 @@ class QmpSocket:
 
     async def receive(self):
         if self.__monitoring:
+            self.__options.print_very_verbose("Getting line from monitor_queue")
             priority, data = await self.__monitor_queue.get()
             return data
 
@@ -62,7 +63,7 @@ class QmpSocket:
                 priority = 0 if ("error", "result") in data else 1
                 await self.__monitor_queue.put((priority, data))
             except TimeoutError:
-                pass
+                self.__options.print_very_verbose("Timeout.")
 
             await asyncio.sleep(1.0)
 
