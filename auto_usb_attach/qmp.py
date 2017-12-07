@@ -103,7 +103,8 @@ class QmpSocket:
             for i in range(0, num_events):
                 try:
                     data = await asyncio.wait_for(self.__receive_line(), .1)
-                    priority = 0 if ("error", "result") in data else 1
+                    priority = 0 if "error" in data else 1 if "return" in data else 2
+                    self.__options.print_debug("Using priority {}".format(priority))
                     await self.__monitor_queue.put(PriorityDict(priority, data))
                 except asyncio.futures.TimeoutError:
                     pass
