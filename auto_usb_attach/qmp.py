@@ -10,6 +10,37 @@ sleep_time = 0.5
 num_events = 2
 
 
+class PriorityDict:
+    @property
+    def data(self):
+        return self.__data
+
+    def __init__(self, priority: int, data: Dict[str, str]):
+        self.__priority = priority
+        self.__data = data
+
+    def __repr__(self):
+        return "PriorityDict({!r}, {!r})".format(self.__priority, self.__data)
+
+    def __eq__(self, other):
+        return self.__priority == other.__priority
+
+    def __ne__(self, other):
+        return self.__priority != other.__priority
+
+    def __lt__(self, other):
+        return self.__priority < other.__priority
+
+    def __le__(self, other):
+        return self.__priority <= other.__priority
+
+    def __gt__(self, other):
+        return self.__priority > other.__priority
+
+    def __ge__(self, other):
+        return self.__priority >= other.__priority
+
+
 class QmpSocket:
     async def __connect_to_qmp(self) -> Dict[str, Any]:
         if not self.__connected:
@@ -41,7 +72,7 @@ class QmpSocket:
     async def receive(self):
         if self.__monitoring:
             self.__options.print_debug("Getting record from queue")
-            priority, data = await self.__monitor_queue.get()
+            data = (await self.__monitor_queue.get()).data
             self.__monitor_queue.task_done()
             self.__options.print_very_verbose("{!r}".format(data))
         else:
@@ -73,7 +104,7 @@ class QmpSocket:
                 try:
                     data = await asyncio.wait_for(self.__receive_line(), .1)
                     priority = 0 if ("error", "result") in data else 1
-                    await self.__monitor_queue.put((priority, data))
+                    await self.__monitor_queue.put(PriorityDict(priority, data))
                 except asyncio.futures.TimeoutError:
                     pass
 
