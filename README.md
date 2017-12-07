@@ -103,6 +103,8 @@ and react appropriately to them.
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
+* Batch calls to QMP instead of getting results each time
+  * This should help with startup time, in addition to the above.
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently

@@ -7,6 +7,7 @@ from .options import Options
 from .xenusb import XenUsb
 
 sleep_time = 0.5
+num_events = 2
 
 
 class QmpSocket:
@@ -62,12 +63,13 @@ class QmpSocket:
         self.__options.print_debug("Connecting to QMP inside of monitor()")
         await self.__connect_to_qmp()
         while True:
-            try:
-                data = await asyncio.wait_for(self.__receive_line(), .1)
-                priority = 0 if ("error", "result") in data else 1
-                await self.__monitor_queue.put((priority, data))
-            except asyncio.futures.TimeoutError:
-                pass
+            for i in range(0, num_events):
+                try:
+                    data = await asyncio.wait_for(self.__receive_line(), .1)
+                    priority = 0 if ("error", "result") in data else 1
+                    await self.__monitor_queue.put((priority, data))
+                except asyncio.futures.TimeoutError:
+                    pass
 
             await asyncio.sleep(sleep_time)
 

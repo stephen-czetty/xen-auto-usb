@@ -33,7 +33,7 @@ class Options:
 
     def print_debug(self, string: str):
         if self.is_debug:
-            print(string)
+            print("Debug: {}".format(string))
 
     def print_very_verbose(self, string: str):
         if self.is_very_verbose:
