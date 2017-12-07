@@ -67,7 +67,7 @@ class QmpSocket:
                 priority = 0 if ("error", "result") in data else 1
                 await self.__monitor_queue.put((priority, data))
             except asyncio.futures.TimeoutError:
-                self.__options.print_very_verbose("Timeout.")
+                pass
 
             await asyncio.sleep(sleep_time)
 
