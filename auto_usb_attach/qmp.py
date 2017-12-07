@@ -40,6 +40,8 @@ class QmpSocket:
         if self.__monitoring:
             self.__options.print_debug("Getting record from queue")
             priority, data = await self.__monitor_queue.get()
+            self.__monitor_queue.task_done()
+            self.__options.print_debug("Got record: {!r}".format(data))
             return data
 
         return await self.__receive_line()
