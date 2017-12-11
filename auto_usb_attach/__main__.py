@@ -68,10 +68,9 @@ class MainThread(Thread):
                     pass
 
         try:
-            asyncio.ensure_future(usb_monitor())
             if self.__options.qmp_socket is not None:
                 asyncio.ensure_future(qmp.monitor_domain())
-            self.__event_loop.run_forever()
+            self.__event_loop.run_until_complete(usb_monitor())
         except KeyboardInterrupt:
             pass
 
