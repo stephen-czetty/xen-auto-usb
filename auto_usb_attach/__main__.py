@@ -46,7 +46,7 @@ class MainThread(Thread):
         qmp = Qmp("/run/xen/qmp-libxl-{}".format(XenDomain.get_domain_id(self.__options.domain)), self.__options)
 
         async def usb_monitor():
-            with XenDomain(self.__options, qmp) as xen_domain:
+            with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.add_device, xen_domain)
                 monitor.device_removed += partial(self.remove_device, xen_domain)

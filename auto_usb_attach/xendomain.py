@@ -1,3 +1,4 @@
+import asyncio
 from functools import partial
 from typing import Tuple, Optional, Callable, Iterable
 from collections import AsyncIterable
@@ -76,6 +77,15 @@ class XenDomain:
                 if XenDomain.__get_xs_value(c, path) == name:
                     return int(domain_id)
             raise NameError("Could not find domain {}".format(name))
+
+    @staticmethod
+    async def wait_for_domain(opts: Options, qmp: Qmp) -> "XenDomain":
+        while True:
+            try:
+                return XenDomain(opts, qmp)
+            except NameError:
+                opts.print_unless_quiet("Could not find domain {}, waiting 5 seconds...".format(opts.domain))
+                await asyncio.sleep(5.0)
 
     async def attach_device_to_xen(self, dev: Device) -> XenUsb:
         # Find an open controller and slot
