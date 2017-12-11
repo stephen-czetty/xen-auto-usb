@@ -90,7 +90,7 @@ class XenDomain:
             except NameError:
                 if opts.no_wait:
                     opts.print_unless_quiet("Could not find domain {}, exiting.".format(opts.domain))
-                    return XenDomain(None, None)
+                    return XenDomain(None, qmp)
 
                 opts.print_unless_quiet("Could not find domain {}, waiting 5 seconds...".format(opts.domain))
                 await asyncio.sleep(5.0)
@@ -142,9 +142,8 @@ class XenDomain:
     def get_attached_devices(self) -> AsyncIterable:
         return self.__qmp.get_usb_devices()
 
-    def __init__(self, opts: Options, qmp: Qmp):
-        if opts is not None:
-            self.__domain_id = XenDomain.get_domain_id(opts.domain)
+    def __init__(self, opts: Optional[Options], qmp: Qmp):
+        self.__domain_id = XenDomain.get_domain_id(opts.domain) if opts is not None else None
         self.__options = opts
         self.__qmp = qmp
 
