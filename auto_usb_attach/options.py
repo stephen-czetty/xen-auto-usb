@@ -31,6 +31,10 @@ class Options:
     def qmp_socket(self) -> Optional[str]:
         return self.__qmp_socket
 
+    @property
+    def no_wait(self) -> bool:
+        return self.__no_wait
+
     def print_debug(self, string: str):
         if self.is_debug:
             print("Debug: {}".format(string))
@@ -62,6 +66,8 @@ class Options:
                                     action="append", required=True)
         parser.add_argument("-s", "--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
                             default=None)
+        parser.add_argument("-n", "--no-wait", help="Do not wait for the domain, exit immediately if it's not running",
+                            dest="no_wait", action="store_true")
 
         return parser
 
@@ -72,6 +78,7 @@ class Options:
         self.__domain = parsed.domain
         self.__hubs = parsed.hub
         self.__qmp_socket = parsed.qmp_socket
+        self.__no_wait = parsed.no_wait
         self.__args = args
 
         self.print_very_verbose("Command line arguments:")

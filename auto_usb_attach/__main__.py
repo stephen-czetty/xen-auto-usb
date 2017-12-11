@@ -47,6 +47,9 @@ class MainThread(Thread):
 
         async def usb_monitor():
             with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
+                if xen_domain is None:
+                    return
+
                 if self.__options.qmp_socket is None:
                     qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
 

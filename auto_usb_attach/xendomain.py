@@ -83,11 +83,15 @@ class XenDomain:
             raise NameError("Could not find domain {}".format(name))
 
     @staticmethod
-    async def wait_for_domain(opts: Options, qmp: Qmp) -> "XenDomain":
+    async def wait_for_domain(opts: Options, qmp: Qmp) -> Optional["XenDomain"]:
         while True:
             try:
                 return XenDomain(opts, qmp)
             except NameError:
+                if opts.no_wait:
+                    opts.print_unless_quiet("Could not find domain {}, exiting.".format(opts.domain))
+                    return None
+
                 opts.print_unless_quiet("Could not find domain {}, waiting 5 seconds...".format(opts.domain))
                 await asyncio.sleep(5.0)
 
