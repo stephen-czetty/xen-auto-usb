@@ -81,10 +81,10 @@ class QmpSocket:
 
             await asyncio.sleep(sleep_time)
 
-    def __init__(self, options: Options, path: str):
+    def __init__(self, options: Options, path: str, keep_open: bool):
         self.__options = options
-        self.__path = options.qmp_socket or path
-        self.__keep_open = options.qmp_socket is not None
+        self.__path = path
+        self.__keep_open = keep_open
         self.__connected = False
         self.__reader = None
         self.__writer = None
@@ -126,7 +126,7 @@ class QmpSocket:
 class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
         self.__qmp_socket = self.__qmp_socket or \
-                            QmpSocket(self.__options, self.__path)
+            QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None)
         return self.__qmp_socket
 
     @staticmethod
@@ -220,7 +220,14 @@ class Qmp:
             raise QmpError({"error": "Cannot monitor domain without a dedicated UNIX socket"})
 
         with self.__get_qmp_socket() as sock:
-            await sock.monitor()
+            while True:
+                try:
+                    await sock.monitor()
+                    break
+                except FileNotFoundError:
+                    self.__options.print_unless_quiet("Dedicated UNIX socket does not exist, waiting 5s...")
+                    await asyncio.sleep(5.0)
+                    continue
 
     def set_socket_path(self, socket_path: str) -> None:
         if self.__options.qmp_socket is not None:
