@@ -1,52 +1,110 @@
 import json
-import socket
+import asyncio
 from typing import Dict, Optional, cast, Iterable, Any
+from collections import AsyncIterable
 
+from .prioritydict import PriorityDict
 from .options import Options
 from .xenusb import XenUsb
 
+sleep_time = 0.5
+num_events = 2
+
 
 class QmpSocket:
-    def __connect_to_qmp(self) -> Dict[str, Any]:
-        self.__options.print_very_verbose("Connecting to QMP")
-        self.__socket.connect(self.__path)
-        greeting = self.__socket.makefile().readline()
-        self.__options.print_very_verbose(greeting)
-        return json.loads(greeting)
+    async def __connect_to_qmp(self) -> Dict[str, Any]:
+        if not self.__connected:
+            try:
+                await self.__connect_lock.acquire()
+                if self.__connected:
+                    return self.__connect_info
+                self.__options.print_very_verbose("Connecting to QMP")
+                self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
+                self.__connected = True
+            finally:
+                self.__connect_lock.release()
 
-    def send(self, data) -> Dict[str, Any]:
+            self.__connect_info = await self.receive()
+            if "error" in self.__connect_info:
+                raise QmpError(self.__connect_info)
+            await self.send(json.dumps({"execute": "qmp_capabilities"}))
+
+        return self.__connect_info
+
+    async def send(self, data: str) -> Dict[str, Any]:
+        await self.__connect_to_qmp()
         self.__options.print_very_verbose(data)
-        self.__socket.send(data.encode())
-        result = self.__socket.makefile().readline()
-        self.__options.print_very_verbose(result)
-        return json.loads(result)
+        self.__writer.write(bytes(data, "utf-8"))
+        # Give Qmp time to respond.
+        await asyncio.sleep(sleep_time*1.5)
+        return await self.receive()
+
+    async def receive(self):
+        if self.__monitoring:
+            self.__options.print_debug("Getting record from queue")
+            data = (await self.__monitor_queue.get()).data
+            self.__monitor_queue.task_done()
+            self.__options.print_very_verbose("{!r}".format(data))
+        else:
+            data = await self.__receive_line()
+            self.__options.print_very_verbose("{!r}".format(data))
+
+        return data
+
+    async def __receive_line(self) -> Dict[str, Any]:
+        data = await self.__reader.readline()
+        data = str(data, "utf-8")
+        self.__options.print_debug(data)
+        return json.loads(data)
 
     def close(self):
         self.__keep_open = False
         self.__exit__()
 
-    def __init__(self, options: Options, path: str, keep_open=False):
+    async def monitor(self):
+        if self.__monitoring:
+            raise QmpError({"error": "Already monitoring"})
+
+        self.__monitoring = True
+        self.__monitor_queue = asyncio.PriorityQueue()
+        self.__options.print_debug("Connecting to QMP inside of monitor()")
+        await self.__connect_to_qmp()
+        while True:
+            for i in range(0, num_events):
+                try:
+                    data = await asyncio.wait_for(self.__receive_line(), .1)
+                    priority = 0 if "error" in data else 1 if "return" in data else 2
+                    self.__options.print_debug("Using priority {}".format(priority))
+                    await self.__monitor_queue.put(PriorityDict(priority, data))
+                except asyncio.futures.TimeoutError:
+                    pass
+
+            await asyncio.sleep(sleep_time)
+
+    def __init__(self, options: Options, path: str):
         self.__options = options
-        self.__path = path
-        self.__keep_open = keep_open
-        self.__socket = None
+        self.__path = options.qmp_socket or path
+        self.__keep_open = options.qmp_socket is not None
+        self.__connected = False
+        self.__reader = None
+        self.__writer = None
+        self.__connect_info = {}
+        self.__monitoring = False
+        self.__monitor_queue = None
+        self.__connect_lock = asyncio.Lock()
+
+    def __repr__(self):
+        return "QmpSocket({!r}, {!r})".format(self.__options, self.__path)
 
     def __enter__(self):
-        if self.__socket is None:
-            # noinspection PyUnresolvedReferences
-            self.__socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.__connect_to_qmp()
-            result = self.send(json.dumps({"execute": "qmp_capabilities"}))
-
-            if "error" in result:
-                raise QmpError(result["error"])
-
         return self
 
     def __exit__(self, exc_type=None, exc_val=None, exc_tb=None):
-        if (not self.__keep_open or exc_type is not None) and self.__socket is not None:
-            self.__socket.__exit__()
-            self.__socket = None
+        if (not self.__keep_open or exc_type is not None) and self.__connected:
+            self.__writer.close()
+            self.__writer = None
+            self.__reader = None
+            self.__connected = False
 
 
 # The C++ code to do this in xl can be found at:
@@ -68,29 +126,29 @@ class QmpSocket:
 class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
         self.__qmp_socket = self.__qmp_socket or \
-                            QmpSocket(self.__options, self.__path, keep_open=self.__options.qmp_socket is not None)
+                            QmpSocket(self.__options, self.__path)
         return self.__qmp_socket
 
     @staticmethod
-    def __send_qmp_command(sock: QmpSocket, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
-        return sock.send(json.dumps({"execute": command, "arguments": arguments}))
+    async def __send_qmp_command(sock: QmpSocket, command: str, arguments: Dict[str, str]) -> Dict[str, Any]:
+        return await sock.send(json.dumps({"execute": command, "arguments": arguments}))
 
-    def __qom_list(self, sock: QmpSocket, path: str) -> Iterable[Dict[str, str]]:
-        result = self.__send_qmp_command(sock, "qom-list", {"path": path})
+    async def __qom_list(self, sock: QmpSocket, path: str) -> Iterable[Dict[str, str]]:
+        result = await self.__send_qmp_command(sock, "qom-list", {"path": path})
         if "error" in result:
             raise QmpError(result["error"])
 
         return cast(Iterable[Dict[str, str]], result["return"])
 
-    def __qom_get(self, sock: QmpSocket, path: str, property_name: str) -> Any:
-        result = self.__send_qmp_command(sock, "qom-get", {"path": path, "property": property_name})
+    async def __qom_get(self, sock: QmpSocket, path: str, property_name: str) -> Any:
+        result = await self.__send_qmp_command(sock, "qom-get", {"path": path, "property": property_name})
         if "error" in result:
             raise QmpError(result["error"])
 
         return result["return"]
 
-    def __get_usb_controller_ids(self, sock: QmpSocket) -> Iterable[int]:
-        controllers = self.__qom_list(sock, "peripheral")
+    async def __get_usb_controller_ids(self, sock: QmpSocket) -> AsyncIterable:
+        controllers = await self.__qom_list(sock, "peripheral")
         if controllers is None:
             return
 
@@ -100,66 +158,78 @@ class Qmp:
         for dev in (d for d in controllers if cast(str, d["type"]) in controller_types):
             yield int(cast(str, dev["name"]).split("-")[1])
 
-    def __get_usb_devices(self, sock: QmpSocket, controller: int) -> Iterable[XenUsb]:
-        controller_devices = self.__qom_list(sock, "xenusb-{}.0".format(controller))
+    async def __get_usb_devices(self, sock: QmpSocket, controller: int) -> AsyncIterable:
+        controller_devices = await self.__qom_list(sock, "xenusb-{}.0".format(controller))
         if controller_devices is None:
             return
 
         for dev in (d for d in controller_devices if cast(str, d["type"]) == "link<usb-host>"):
-            dev_path = self.__qom_get(sock, "xenusb-{}.0".format(controller), dev["name"])
+            dev_path = await self.__qom_get(sock, "xenusb-{}.0".format(controller), dev["name"])
             if dev_path is None:
                 continue
 
-            port = self.__qom_get(sock, dev_path, "port")
+            port = await self.__qom_get(sock, dev_path, "port")
             if port is None:
                 continue
 
-            hostbus = self.__qom_get(sock, dev_path, "hostbus")
-            hostaddr = self.__qom_get(sock, dev_path, "hostaddr")
+            hostbus = await self.__qom_get(sock, dev_path, "hostbus")
+            hostaddr = await self.__qom_get(sock, dev_path, "hostaddr")
 
             yield XenUsb(controller, int(port), int(hostbus), int(hostaddr))
 
-    def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> None:
+    async def attach_usb_device(self, busnum: int, devnum: int, controller: int, port: int) -> None:
         with self.__get_qmp_socket() as sock:
-            result = self.__send_qmp_command(sock, "device_add",
-                                             {"id": "xenusb-{}-{}".format(busnum, devnum),
-                                              "driver": "usb-host",
-                                              "bus": "xenusb-{}.0".format(controller),
-                                              "port": str(port),
-                                              "hostbus": str(busnum),
-                                              "hostaddr": str(devnum)}
-                                             )
+            result = await self.__send_qmp_command(sock, "device_add",
+                                                   {"id": "xenusb-{}-{}".format(busnum, devnum),
+                                                    "driver": "usb-host",
+                                                    "bus": "xenusb-{}.0".format(controller),
+                                                    "port": str(port),
+                                                    "hostbus": str(busnum),
+                                                    "hostaddr": str(devnum)}
+                                                   )
             if "error" in result:
                 raise QmpError(result["error"])
 
-    def detach_usb_device(self, busnum: int, devnum: int) -> None:
+    async def detach_usb_device(self, busnum: int, devnum: int) -> None:
         with self.__get_qmp_socket() as sock:
-            result = self.__send_qmp_command(sock, "device_del", {"id": "xenusb-{}-{}".format(busnum, devnum)})
+            result = await self.__send_qmp_command(sock, "device_del", {"id": "xenusb-{}-{}".format(busnum, devnum)})
 
             if "error" in result:
                 raise QmpError(result["error"])
 
-    def get_usb_host(self, controller: int, port: int) -> Optional[XenUsb]:
+    async def get_usb_host(self, controller: int, port: int) -> Optional[XenUsb]:
         with self.__get_qmp_socket() as sock:
-            controller_devices = self.__qom_list(sock, "xenusb-{}.0".format(controller))
+            controller_devices = await self.__qom_list(sock, "xenusb-{}.0".format(controller))
             if controller_devices is None:
                 return None
 
-            return next((u for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
+            async for u in self.__get_usb_devices(sock, controller):
+                if u.port == port:
+                    return u
+            # return anext((u async for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
+            return None
 
-    def get_usb_devices(self) -> Iterable[XenUsb]:
+    async def get_usb_devices(self) -> AsyncIterable:
         with self.__get_qmp_socket() as sock:
-            for controller_id in self.__get_usb_controller_ids(sock):
-                for usb_dev in self.__get_usb_devices(sock, controller_id):
+            async for controller_id in self.__get_usb_controller_ids(sock):
+                async for usb_dev in self.__get_usb_devices(sock, controller_id):
                     yield usb_dev
 
+    async def monitor_domain(self) -> None:
+        if self.__options.qmp_socket is None:
+            raise QmpError({"error": "Cannot monitor domain without a dedicated UNIX socket"})
+
+        with self.__get_qmp_socket() as sock:
+            await sock.monitor()
+
     def __init__(self, path: str, options: Options):
+        super().__init__()
         self.__options = options
         self.__path = self.__options.qmp_socket or path
         self.__qmp_socket = None
 
     def __repr__(self):
-        return "Qmp({!r}, {!r}".format(self.__path, self.__options)
+        return "Qmp({!r}, {!r})".format(self.__path, self.__options)
 
     def __enter__(self):
         return self

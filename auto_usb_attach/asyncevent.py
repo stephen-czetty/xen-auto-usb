@@ -1,24 +1,24 @@
 from typing import Callable
 
 
-class Event:
+class AsyncEvent:
     def __init__(self):
         self.__handlers = set()
 
-    def __iadd__(self, handler: Callable) -> "Event":
+    def __iadd__(self, handler: Callable) -> "AsyncEvent":
         self.__handlers.add(handler)
         return self
 
-    def __isub__(self, handler: Callable) -> "Event":
+    def __isub__(self, handler: Callable) -> "AsyncEvent":
         self.__handlers.remove(handler)
         return self
 
-    def __call__(self, *args, **kwargs):
+    async def fire(self, *args, **kwargs) -> None:
         for handler in self.__handlers:
-            handler(*args, **kwargs)
+            await handler(*args, **kwargs)
 
     def __len__(self):
         return len(self.__handlers)
 
     def __repr__(self):
-        return "Event()"
+        return "AsyncEvent()"

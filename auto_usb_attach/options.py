@@ -12,6 +12,10 @@ class Options:
         return self.__verbosity > 1
 
     @property
+    def is_debug(self) -> bool:
+        return self.__verbosity > 2
+
+    @property
     def is_quiet(self) -> bool:
         return self.__verbosity < 0
 
@@ -26,6 +30,10 @@ class Options:
     @property
     def qmp_socket(self) -> Optional[str]:
         return self.__qmp_socket
+
+    def print_debug(self, string: str):
+        if self.is_debug:
+            print("Debug: {}".format(string))
 
     def print_very_verbose(self, string: str):
         if self.is_very_verbose:

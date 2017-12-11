@@ -50,4 +50,4 @@ class Device:
         self.__inner = inner
 
     def __repr__(self):
-        return "Device({!r})".format(self.__inner)
+        return "Device(pyudev.{!r})".format(self.__inner)

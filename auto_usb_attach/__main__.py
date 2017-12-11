@@ -3,69 +3,85 @@
 import sys
 from functools import partial
 from typing import List, Dict
+from threading import Lock, Thread
 
+import asyncio
+
+from auto_usb_attach.qmp import Qmp
 from .options import Options
 from .xendomain import XenDomain, XenError
 from .devicemonitor import DeviceMonitor
 from .device import Device
 from .xenusb import XenUsb
 
-opts = None
-device_map = {}
 
+class MainThread(Thread):
+    async def add_device(self, domain: XenDomain, device: Device):
+        self.__options.print_very_verbose("add_device event fired: {}".format(device))
+        if device.sys_name not in self.__device_map:
+            self.__options.print_verbose("Device added: {}".format(device.device_path))
 
-def add_device(domain: XenDomain, root_devices: List[Device], device: Device):
-    if device.is_a_device_we_care_about(root_devices) and device.sys_name not in device_map:
-        opts.print_verbose("Device added: {0}".format(device))
+            try:
+                dev_map = await domain.attach_device_to_xen(device)
+                with self.__device_map_lock:
+                    self.__device_map[device.sys_name] = dev_map
+            except XenError:
+                pass
+
+    async def remove_device(self, domain: XenDomain, device: Device):
+        self.__options.print_very_verbose("remove_device event fired: {}".format(device))
+        if device.sys_name in self.__device_map:
+            self.__options.print_verbose("Removing device: {}".format(device.device_path))
+            if await domain.detach_device_from_xen(self.__device_map[device.sys_name]):
+                with self.__device_map_lock:
+                    del self.__device_map[device.sys_name]
+
+    @staticmethod
+    async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
+        async for dev in domain.get_attached_devices():
+            if dev not in devices:
+                await domain.detach_device_from_xen(dev)
+
+    def run(self):
+        qmp = Qmp("/run/xen/qmp-libxl-{}".format(XenDomain.get_domain_id(self.__options.domain)), self.__options)
+
+        async def usb_monitor():
+            with XenDomain(self.__options, qmp) as xen_domain:
+                monitor = DeviceMonitor(self.__options, xen_domain)
+                monitor.device_added += partial(self.add_device, xen_domain)
+                monitor.device_removed += partial(self.remove_device, xen_domain)
+
+                try:
+                    with self.__device_map_lock:
+                        for h in self.__options.hubs:
+                            self.__device_map.update(await monitor.add_hub(h))
+                        await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+
+                    await monitor.monitor_devices()
+                except KeyboardInterrupt:
+                    pass
 
         try:
-            dev_map = domain.attach_device_to_xen(device)
-            device_map[device.sys_name] = dev_map
-        except XenError:
+            asyncio.ensure_future(usb_monitor())
+            asyncio.ensure_future(qmp.monitor_domain())
+            self.__event_loop.run_forever()
+        except KeyboardInterrupt:
             pass
 
+    def __init__(self, args):
+        super().__init__()
+        self.__args = args
+        self.__options = Options(args)
+        self.__device_map: Dict[str, XenUsb] = {}
+        self.__device_map_lock = Lock()
+        self.__event_loop = asyncio.get_event_loop()
 
-def remove_device(domain: XenDomain, device: Device):
-    if device.sys_name in device_map:
-        opts.print_verbose("Removing device: {0}".format(device))
-        if domain.detach_device_from_xen(device_map[device.sys_name]):
-            del device_map[device.sys_name]
-
-
-def get_connected_devices(domain: XenDomain, root_devices: List[Device]) -> Dict[str, XenUsb]:
-    for monitored_device in root_devices:
-        for device in monitored_device.devices_of_interest():
-            opts.print_verbose("Found at startup: {0.device_path}".format(device))
-            dev_map = domain.find_device_mapping(device.sys_name)
-            if dev_map is None:
-                dev_map = domain.attach_device_to_xen(device)
-            if dev_map is not None:
-                device_map[device.sys_name] = dev_map
-    return device_map
-
-
-def remove_disconnected_devices(domain: XenDomain, devices: Dict[str, XenUsb]):
-    for dev in list(domain.get_attached_devices()):
-        if dev not in devices.values():
-            domain.detach_device_from_xen(dev)
+    def __repr__(self):
+        return "MainThread({!r})".format(self.__args)
 
 
 def main(args: List[str]) -> None:
-    global opts, device_map
-    opts = Options(args)
-
-    with XenDomain(opts) as xen_domain:
-        monitor = DeviceMonitor(opts, xen_domain)
-        root_devices = [monitor.add_monitored_device(x) for x in opts.hubs]
-        monitor.device_added += partial(add_device, xen_domain, root_devices)
-        monitor.device_removed += partial(remove_device, xen_domain)
-
-        try:
-            device_map = get_connected_devices(xen_domain, root_devices)
-            remove_disconnected_devices(xen_domain, device_map)
-            monitor.monitor_devices()
-        except KeyboardInterrupt:
-            pass
+    MainThread(args).run()
 
 
 if __name__ == "__main__":
