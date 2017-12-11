@@ -229,10 +229,6 @@ class Qmp:
                     await sock.monitor()
                     break
                 except FileNotFoundError:
-                    if self.__options.no_wait:
-                        self.__options.print_unless_quiet("Dedicated UNIX socket does not exist, exiting.")
-                        return
-
                     self.__options.print_unless_quiet("Dedicated UNIX socket does not exist, waiting 5s...")
                     await asyncio.sleep(5.0)
                     continue
