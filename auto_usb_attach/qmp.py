@@ -65,21 +65,25 @@ class QmpSocket:
         if self.__monitoring:
             raise QmpError({"error": "Already monitoring"})
 
-        self.__monitoring = True
-        self.__monitor_queue = asyncio.PriorityQueue()
-        self.__options.print_debug("Connecting to QMP inside of monitor()")
-        await self.__connect_to_qmp()
-        while True:
-            for i in range(0, num_events):
-                try:
-                    data = await asyncio.wait_for(self.__receive_line(), .1)
-                    priority = 0 if "error" in data else 1 if "return" in data else 2
-                    self.__options.print_debug("Using priority {}".format(priority))
-                    await self.__monitor_queue.put(PriorityDict(priority, data))
-                except asyncio.futures.TimeoutError:
-                    pass
+        try:
+            self.__monitoring = True
+            self.__monitor_queue = asyncio.PriorityQueue()
+            self.__options.print_debug("Connecting to QMP inside of monitor()")
+            await self.__connect_to_qmp()
+            while True:
+                for i in range(0, num_events):
+                    try:
+                        data = await asyncio.wait_for(self.__receive_line(), .1)
+                        priority = 0 if "error" in data else 1 if "return" in data else 2
+                        self.__options.print_debug("Using priority {}".format(priority))
+                        await self.__monitor_queue.put(PriorityDict(priority, data))
+                    except asyncio.futures.TimeoutError:
+                        pass
 
-            await asyncio.sleep(sleep_time)
+                await asyncio.sleep(sleep_time)
+        finally:
+            self.__monitoring = False
+            self.__monitor_queue = None
 
     def __init__(self, options: Options, path: str, keep_open: bool):
         self.__options = options
