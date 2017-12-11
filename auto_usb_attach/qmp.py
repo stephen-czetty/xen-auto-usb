@@ -222,10 +222,16 @@ class Qmp:
         with self.__get_qmp_socket() as sock:
             await sock.monitor()
 
-    def __init__(self, path: str, options: Options):
+    def set_socket_path(self, socket_path: str) -> None:
+        if self.__options.qmp_socket is not None:
+            raise Exception("Don't call set_socket_path if options.qmp_socket is set.")
+
+        self.__path = socket_path
+
+    def __init__(self, options: Options):
         super().__init__()
         self.__options = options
-        self.__path = self.__options.qmp_socket or path
+        self.__path = self.__options.qmp_socket
         self.__qmp_socket = None
 
     def __repr__(self):

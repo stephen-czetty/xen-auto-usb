@@ -60,7 +60,7 @@ class Options:
         required_group.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
                                                         "can be specified multiple times", type=str,
                                     action="append", required=True)
-        parser.add_argument("--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
+        parser.add_argument("-s", "--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
                             default=None)
 
         return parser

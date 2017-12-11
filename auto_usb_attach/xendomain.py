@@ -69,6 +69,10 @@ class XenDomain:
 
             raise XenError(Exception("No open device slot"))
 
+    @property
+    def domain_id(self):
+        return self.__domain_id
+
     @staticmethod
     def get_domain_id(name: str) -> int:
         with pyxs.Client() as c:
