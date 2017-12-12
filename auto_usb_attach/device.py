@@ -4,27 +4,35 @@ import pyudev
 
 class Device:
     @property
-    def device_path(self):
+    def device_path(self) -> str:
         return self.__inner.device_path
 
     @property
-    def busnum(self):
-        return int(self.__inner.properties['BUSNUM'])
+    def busnum(self) -> int:
+        return int(self.__inner.attributes.get('busnum'))
 
     @property
-    def devnum(self):
-        return int(self.__inner.properties['DEVNUM'])
+    def devnum(self) -> int:
+        return int(self.__inner.attributes.get('devnum'))
 
     @property
-    def sys_name(self):
+    def vendor_id(self) -> str:
+        return str(self.__inner.attributes.get('idVendor'), "ascii")
+
+    @property
+    def product_id(self) -> str:
+        return str(self.__inner.attributes.get('idProduct'), "ascii")
+
+    @property
+    def sys_name(self) -> str:
         return self.__inner.sys_name
 
     @property
-    def action(self):
+    def action(self) -> str:
         return self.__inner.action
 
     @property
-    def children(self):
+    def children(self) -> Iterable["Device"]:
         return (Device(x) for x in self.__inner.children)
 
     def is_a_hub(self) -> bool:
