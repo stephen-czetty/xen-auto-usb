@@ -104,6 +104,7 @@ and react appropriately to them.
 * Qmp.__get_usb_devices could probably cache its data
 * Batch calls to QMP instead of getting results each time
   * This should help with startup time, in addition to the above.
+* Watch for specific devices (vendor:product) in addition to entire hubs
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
