@@ -21,11 +21,18 @@ class DeviceMonitor:
             if self.__is_a_device_we_care_about(d, device):
                 yield d
 
-    def __is_a_device_we_care_about(self, device: Device, device_to_check: Optional['Device'] = None) -> bool:
-        devices = [device_to_check] if device_to_check else self.__root_devices
+    def __is_a_device_we_care_about(self, device: Device, hub_device: Optional['Device'] = None) -> bool:
+        devices = [hub_device] if hub_device else self.__root_devices
         for monitored_device in devices:
             if device.device_path.startswith(monitored_device.device_path):
                 return not device.is_a_hub() and device.is_a_root_device()
+
+        if hub_device is not None:
+            return False
+
+        for specific_device in self.__specific_devices:
+            if specific_device[0] == device.vendor_id and specific_device[1] == device.product_id:
+                return True
 
         return False
 
