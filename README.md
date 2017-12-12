@@ -17,21 +17,27 @@ This script attempts to fix that shortcoming.
 
 ### Usage ###
 
-    usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN -u HUB
+    usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN -u HUB [-s QMP_SOCKET] [-n]
+                              [-x SPECIFIC_DEVICE]
 
     optional arguments:
       -h, --help            show this help message and exit
       -v, --verbose         increase verbosity
       -q, --quiet           be very quiet
-      --qmp-socket QMP_SOCKET
+      -s QMP_SOCKET, --qmp-socket QMP_SOCKET
                             UNIX domain socket to connect to
-
+      -n, --no-wait         Do not wait for the domain, exit immediately if it's
+                            not running
+      -x SPECIFIC_DEVICE, --specific-device SPECIFIC_DEVICE
+                            Specific device to watch for (<vendor-id>:<product-
+                            id>)
 
     required arguments:
       -d DOMAIN, --domain DOMAIN
                             domain name to monitor
       -u HUB, --hub HUB     usb hub to monitor (for example, "usb3", "1-1") can be
                             specified multiple times
+
 
 ### Requirements ###
 
