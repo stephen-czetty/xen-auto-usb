@@ -78,7 +78,7 @@ class DeviceMonitor:
         dev = self.__find_device(vendor_id, product_id)
         if dev is not None:
             self.__options.print_debug("Found device: {!r}".format(dev))
-            attached_device = self.__domain.attach_device_to_xen(dev)
+            attached_device = await self.__domain.attach_device_to_xen(dev)
             ret[dev.sys_name] = attached_device
 
         self.__specific_devices.append((vendor_id, product_id))
