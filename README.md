@@ -99,7 +99,6 @@ and react appropriately to them.
 * Get rid of the globals in __main__
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Gracefully handle situations where the VM is not running (wait for it to come up?)
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
