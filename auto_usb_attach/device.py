@@ -1,4 +1,4 @@
-from typing import List, Iterable
+from typing import Iterable
 import pyudev
 
 
@@ -41,18 +41,6 @@ class Device:
 
     def is_a_root_device(self) -> bool:
         return "bDeviceClass" in self.__inner.attributes.available_attributes
-
-    def is_a_device_we_care_about(self, devices_to_monitor: List['Device']) -> bool:
-        for monitored_device in devices_to_monitor:
-            if self.device_path.startswith(monitored_device.device_path):
-                return not self.is_a_hub() and self.is_a_root_device()
-
-        return False
-
-    def devices_of_interest(self) -> Iterable['Device']:
-        for d in self.children:
-            if d.is_a_device_we_care_about([self]):
-                yield d
 
     def __init__(self, inner: pyudev.Device):
         self.__inner = inner
