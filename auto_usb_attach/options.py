@@ -86,7 +86,7 @@ class Options:
         self.__qmp_socket = parsed.qmp_socket
         self.__no_wait = parsed.no_wait
         self.__args = args
-        self.__specific_devices = parsed.specific_device
+        self.__specific_devices = parsed.specific_device or []
 
         self.print_very_verbose("Command line arguments:")
         self.print_very_verbose("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
