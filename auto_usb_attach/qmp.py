@@ -65,26 +65,30 @@ class QmpSocket:
         if self.__monitoring:
             raise QmpError({"error": "Already monitoring"})
 
-        self.__monitoring = True
-        self.__monitor_queue = asyncio.PriorityQueue()
-        self.__options.print_debug("Connecting to QMP inside of monitor()")
-        await self.__connect_to_qmp()
-        while True:
-            for i in range(0, num_events):
-                try:
-                    data = await asyncio.wait_for(self.__receive_line(), .1)
-                    priority = 0 if "error" in data else 1 if "return" in data else 2
-                    self.__options.print_debug("Using priority {}".format(priority))
-                    await self.__monitor_queue.put(PriorityDict(priority, data))
-                except asyncio.futures.TimeoutError:
-                    pass
+        try:
+            self.__monitoring = True
+            self.__monitor_queue = asyncio.PriorityQueue()
+            self.__options.print_debug("Connecting to QMP inside of monitor()")
+            await self.__connect_to_qmp()
+            while True:
+                for i in range(0, num_events):
+                    try:
+                        data = await asyncio.wait_for(self.__receive_line(), .1)
+                        priority = 0 if "error" in data else 1 if "return" in data else 2
+                        self.__options.print_debug("Using priority {}".format(priority))
+                        await self.__monitor_queue.put(PriorityDict(priority, data))
+                    except asyncio.futures.TimeoutError:
+                        pass
 
-            await asyncio.sleep(sleep_time)
+                await asyncio.sleep(sleep_time)
+        finally:
+            self.__monitoring = False
+            self.__monitor_queue = None
 
-    def __init__(self, options: Options, path: str):
+    def __init__(self, options: Options, path: str, keep_open: bool):
         self.__options = options
-        self.__path = options.qmp_socket or path
-        self.__keep_open = options.qmp_socket is not None
+        self.__path = path
+        self.__keep_open = keep_open
         self.__connected = False
         self.__reader = None
         self.__writer = None
@@ -126,7 +130,7 @@ class QmpSocket:
 class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
         self.__qmp_socket = self.__qmp_socket or \
-                            QmpSocket(self.__options, self.__path)
+            QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None)
         return self.__qmp_socket
 
     @staticmethod
@@ -220,12 +224,25 @@ class Qmp:
             raise QmpError({"error": "Cannot monitor domain without a dedicated UNIX socket"})
 
         with self.__get_qmp_socket() as sock:
-            await sock.monitor()
+            while True:
+                try:
+                    await sock.monitor()
+                    break
+                except FileNotFoundError:
+                    self.__options.print_unless_quiet("Dedicated UNIX socket does not exist, waiting 5s...")
+                    await asyncio.sleep(5.0)
+                    continue
 
-    def __init__(self, path: str, options: Options):
+    def set_socket_path(self, socket_path: str) -> None:
+        if self.__options.qmp_socket is not None:
+            raise Exception("Don't call set_socket_path if options.qmp_socket is set.")
+
+        self.__path = socket_path
+
+    def __init__(self, options: Options):
         super().__init__()
         self.__options = options
-        self.__path = self.__options.qmp_socket or path
+        self.__path = self.__options.qmp_socket
         self.__qmp_socket = None
 
     def __repr__(self):

@@ -1,3 +1,4 @@
+import asyncio
 from functools import partial
 from typing import Tuple, Optional, Callable, Iterable
 from collections import AsyncIterable
@@ -68,6 +69,10 @@ class XenDomain:
 
             raise XenError(Exception("No open device slot"))
 
+    @property
+    def domain_id(self):
+        return self.__domain_id
+
     @staticmethod
     def get_domain_id(name: str) -> int:
         with pyxs.Client() as c:
@@ -76,6 +81,19 @@ class XenDomain:
                 if XenDomain.__get_xs_value(c, path) == name:
                     return int(domain_id)
             raise NameError("Could not find domain {}".format(name))
+
+    @staticmethod
+    async def wait_for_domain(opts: Options, qmp: Qmp) -> Optional["XenDomain"]:
+        while True:
+            try:
+                return XenDomain(opts, qmp)
+            except NameError:
+                if opts.no_wait:
+                    opts.print_unless_quiet("Could not find domain {}, exiting.".format(opts.domain))
+                    return XenDomain(None, qmp)
+
+                opts.print_unless_quiet("Could not find domain {}, waiting 5 seconds...".format(opts.domain))
+                await asyncio.sleep(5.0)
 
     async def attach_device_to_xen(self, dev: Device) -> XenUsb:
         # Find an open controller and slot
@@ -124,8 +142,8 @@ class XenDomain:
     def get_attached_devices(self) -> AsyncIterable:
         return self.__qmp.get_usb_devices()
 
-    def __init__(self, opts: Options, qmp: Qmp):
-        self.__domain_id = XenDomain.get_domain_id(opts.domain)
+    def __init__(self, opts: Optional[Options], qmp: Qmp):
+        self.__domain_id = XenDomain.get_domain_id(opts.domain) if opts is not None else None
         self.__options = opts
         self.__qmp = qmp
 
@@ -133,6 +151,8 @@ class XenDomain:
         return "XenDomain({!r}, {!r})".format(self.__options, self.__qmp)
 
     def __enter__(self):
+        if self.__domain_id is None:
+            return None
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

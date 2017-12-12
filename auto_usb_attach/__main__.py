@@ -43,10 +43,16 @@ class MainThread(Thread):
                 await domain.detach_device_from_xen(dev)
 
     def run(self):
-        qmp = Qmp("/run/xen/qmp-libxl-{}".format(XenDomain.get_domain_id(self.__options.domain)), self.__options)
+        qmp = Qmp(self.__options)
 
         async def usb_monitor():
-            with XenDomain(self.__options, qmp) as xen_domain:
+            with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
+                if xen_domain is None:
+                    return
+
+                if self.__options.qmp_socket is None:
+                    qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
+
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.add_device, xen_domain)
                 monitor.device_removed += partial(self.remove_device, xen_domain)
@@ -62,9 +68,9 @@ class MainThread(Thread):
                     pass
 
         try:
-            asyncio.ensure_future(usb_monitor())
-            asyncio.ensure_future(qmp.monitor_domain())
-            self.__event_loop.run_forever()
+            if self.__options.qmp_socket is not None:
+                asyncio.ensure_future(qmp.monitor_domain())
+            self.__event_loop.run_until_complete(usb_monitor())
         except KeyboardInterrupt:
             pass
 
