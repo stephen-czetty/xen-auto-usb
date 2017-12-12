@@ -9,11 +9,11 @@ class Device:
 
     @property
     def busnum(self) -> int:
-        return int(self.__inner.attributes.get('busnum'))
+        return int(self.__inner.attributes.get('busnum') or -1)
 
     @property
     def devnum(self) -> int:
-        return int(self.__inner.attributes.get('devnum'))
+        return int(self.__inner.attributes.get('devnum') or -1)
 
     @property
     def vendor_id(self) -> str:

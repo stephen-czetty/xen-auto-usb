@@ -46,10 +46,19 @@ class DeviceMonitor:
                 continue
 
             dev = Device(pyudev.Devices.from_path(self.__context, dev_file))
+            if not dev.is_a_root_device:
+                continue
+
             if dev.vendor_id == vendor_id and dev.product_id == product_id:
                 return dev
 
         return None
+
+    async def __add_hub(self, device: Device) -> Dict[str, XenUsb]:
+        if device not in self.__root_devices:
+            self.__root_devices.append(device)
+
+        return await self.__get_connected_devices(device)
 
     async def add_hub(self, device_name: str) -> Dict[str, XenUsb]:
         inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(sysfs_root, device_name))
@@ -60,10 +69,7 @@ class DeviceMonitor:
         if not dev.is_a_hub():
             raise RuntimeError("Device {0} is not a hub".format(dev.sys_name))
 
-        if dev not in self.__root_devices:
-            self.__root_devices.append(dev)
-
-        return await self.__get_connected_devices(dev)
+        return await self.__add_hub(dev)
 
     async def add_specific_device(self, device_id: str) -> Dict[str, XenUsb]:
         ret = {}
@@ -78,6 +84,8 @@ class DeviceMonitor:
         dev = self.__find_device(vendor_id, product_id)
         if dev is not None:
             self.__options.print_debug("Found device: {!r}".format(dev))
+            if dev.is_a_hub():
+                return await self.__add_hub(dev)
             attached_device = await self.__domain.attach_device_to_xen(dev)
             ret[dev.sys_name] = attached_device
 
