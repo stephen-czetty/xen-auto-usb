@@ -40,7 +40,7 @@ class DeviceMonitor:
                 device_map[device.sys_name] = dev_map
         return device_map
 
-    def __find_device(self, vendor_id: str, product_id: str) -> Optional[Device]:
+    def __find_devices(self, vendor_id: str, product_id: str) -> Iterable[Device]:
         for dev_file in glob("{}/*".format(sysfs_root)):
             if dev_file.split("/")[-1].startswith("usb"):
                 continue
@@ -50,9 +50,7 @@ class DeviceMonitor:
                 continue
 
             if dev.vendor_id == vendor_id and dev.product_id == product_id:
-                return dev
-
-        return None
+                yield dev
 
     async def __add_hub(self, device: Device) -> Dict[str, XenUsb]:
         if device not in self.__root_devices:
@@ -81,8 +79,7 @@ class DeviceMonitor:
             raise RuntimeError("Device {} is not formatted properly. (Should be <vendor_id>:<product_id>)")
 
         self.__options.print_debug("Searching for {}".format(device_id))
-        dev = self.__find_device(vendor_id, product_id)
-        if dev is not None:
+        for dev in self.__find_devices(vendor_id, product_id):
             self.__options.print_debug("Found device: {!r}".format(dev))
             if dev.is_a_hub():
                 return await self.__add_hub(dev)
