@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict
+from typing import Dict, Iterable, Optional
 
 from .xenusb import XenUsb
 from .device import Device
@@ -15,9 +15,22 @@ sysfs_root = "/sys/bus/usb/devices"
 class DeviceMonitor:
     __context = None
 
+    def __devices_of_interest(self, device: Device) -> Iterable['Device']:
+        for d in device.children:
+            if self.__is_a_device_we_care_about(d, device):
+                yield d
+
+    def __is_a_device_we_care_about(self, device: Device, device_to_check: Optional['Device'] = None) -> bool:
+        devices = [device_to_check] if device_to_check else self.__root_devices
+        for monitored_device in devices:
+            if device.device_path.startswith(monitored_device.device_path):
+                return not device.is_a_hub() and device.is_a_root_device()
+
+        return False
+
     async def __get_connected_devices(self, hub_device: Device) -> Dict[str, XenUsb]:
         device_map = {}
-        for device in hub_device.devices_of_interest():
+        for device in self.__devices_of_interest(hub_device):
             self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
             dev_map = await self.__domain.find_device_mapping(device.sys_name)
             if dev_map is None:
@@ -53,7 +66,7 @@ class DeviceMonitor:
             device = Device(device)
             self.__options.print_very_verbose('{0.action} on {0.device_path}'.format(device))
             if device.action == "add":
-                if device.is_a_device_we_care_about(self.__root_devices):
+                if self.__is_a_device_we_care_about(device):
                     await self.device_added.fire(device)
             elif device.action == "remove":
                 await self.device_removed.fire(device)
