@@ -1,5 +1,6 @@
 import asyncio
 from typing import Dict, Iterable, Optional
+from glob import glob
 
 from .xenusb import XenUsb
 from .device import Device
@@ -39,6 +40,17 @@ class DeviceMonitor:
                 device_map[device.sys_name] = dev_map
         return device_map
 
+    def __find_device(self, vendor_id: str, product_id: str) -> Optional[Device]:
+        for dev_file in glob("{}/*".format(sysfs_root)):
+            if dev_file.split("/")[-1].startswith("usb"):
+                continue
+
+            dev = Device(pyudev.Devices.from_path(self.__context, dev_file))
+            if dev.vendor_id == vendor_id and dev.product_id == product_id:
+                return dev
+
+        return None
+
     async def add_hub(self, device_name: str) -> Dict[str, XenUsb]:
         inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(sysfs_root, device_name))
 
@@ -52,6 +64,23 @@ class DeviceMonitor:
             self.__root_devices.append(dev)
 
         return await self.__get_connected_devices(dev)
+
+    async def add_specific_device(self, device_id: str) -> Dict[str, XenUsb]:
+        ret = {}
+        vendor_id, product_id = device_id.split(":")
+        if (vendor_id, product_id) in self.__specific_devices:
+            return ret
+
+        if vendor_id is None or product_id is None:
+            raise RuntimeError("Device {} is not formatted properly. (Should be <vendor_id>:<product_id>)")
+
+        dev = await self.__find_device(vendor_id, product_id)
+        if dev is not None:
+            attached_device = self.__domain.attach_device_to_xen(dev)
+            ret[dev.sys_name] = attached_device
+
+        self.__specific_devices.append((vendor_id, product_id))
+        return ret
 
     async def monitor_devices(self) -> None:
         monitor = pyudev.Monitor.from_netlink(self.__context)
@@ -76,6 +105,7 @@ class DeviceMonitor:
         self.__options = opts
         self.__domain = xen_domain
         self.__root_devices = []
+        self.__specific_devices = []
 
         self.device_added = AsyncEvent()
         self.device_removed = AsyncEvent()

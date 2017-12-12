@@ -28,6 +28,10 @@ class Options:
         return self.__hubs
 
     @property
+    def specific_devices(self) -> List[str]:
+        return self.__specific_devices
+
+    @property
     def qmp_socket(self) -> Optional[str]:
         return self.__qmp_socket
 
@@ -68,6 +72,8 @@ class Options:
                             default=None)
         parser.add_argument("-n", "--no-wait", help="Do not wait for the domain, exit immediately if it's not running",
                             dest="no_wait", action="store_true")
+        parser.add_argument("-x", "--specific-device", help="Specific device to watch for (<vendor-id>:<product-id>)",
+                            type=str, action="append")
 
         return parser
 
@@ -80,6 +86,7 @@ class Options:
         self.__qmp_socket = parsed.qmp_socket
         self.__no_wait = parsed.no_wait
         self.__args = args
+        self.__specific_devices = parsed.specific_device
 
         self.print_very_verbose("Command line arguments:")
         self.print_very_verbose("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
@@ -87,6 +94,8 @@ class Options:
                                                        "Quiet" if self.is_quiet else "Normal"))
         self.print_very_verbose("Domain: {}".format(self.domain))
         self.print_very_verbose("Hubs: {}".format(self.hubs))
+        self.print_very_verbose("No Wait: {}".format(self.no_wait))
+        self.print_very_verbose("Specific Devices: {}".format(self.specific_devices))
 
     def __repr__(self):
         return "Options({!r})".format(self.__args)

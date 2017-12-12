@@ -38,6 +38,7 @@ class QmpSocket:
     async def send(self, data: str) -> Dict[str, Any]:
         await self.__connect_to_qmp()
         await self.__send_line(data)
+
         # Give Qmp time to respond.
         await asyncio.sleep(sleep_time*1.5)
         return await self.receive()
