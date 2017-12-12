@@ -74,8 +74,10 @@ class DeviceMonitor:
         if vendor_id is None or product_id is None:
             raise RuntimeError("Device {} is not formatted properly. (Should be <vendor_id>:<product_id>)")
 
-        dev = await self.__find_device(vendor_id, product_id)
+        self.__options.print_debug("Searching for {}".format(device_id))
+        dev = self.__find_device(vendor_id, product_id)
         if dev is not None:
+            self.__options.print_debug("Found device: {!r}".format(dev))
             attached_device = self.__domain.attach_device_to_xen(dev)
             ret[dev.sys_name] = attached_device
 

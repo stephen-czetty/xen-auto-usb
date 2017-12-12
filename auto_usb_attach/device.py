@@ -17,11 +17,11 @@ class Device:
 
     @property
     def vendor_id(self) -> str:
-        return str(self.__inner.attributes.get('idVendor'), "ascii")
+        return str(self.__inner.attributes.get('idVendor') or b"", "ascii")
 
     @property
     def product_id(self) -> str:
-        return str(self.__inner.attributes.get('idProduct'), "ascii")
+        return str(self.__inner.attributes.get('idProduct') or b"", "ascii")
 
     @property
     def sys_name(self) -> str:
