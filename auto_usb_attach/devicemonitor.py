@@ -29,15 +29,21 @@ class DeviceMonitor:
 
         return False
 
+    async def __attach_device(self, device: Device) -> Dict[str, XenUsb]:
+        dev_map = await self.__domain.find_device_mapping(device.sys_name)
+        if dev_map is None:
+            dev_map = await self.__domain.attach_device_to_xen(device)
+        if dev_map is not None:
+            return {device.sys_name: dev_map}
+
+        return {}
+
     async def __get_connected_devices(self, hub_device: Device) -> Dict[str, XenUsb]:
         device_map = {}
         for device in self.__devices_of_interest(hub_device):
             self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
-            dev_map = await self.__domain.find_device_mapping(device.sys_name)
-            if dev_map is None:
-                dev_map = await self.__domain.attach_device_to_xen(device)
-            if dev_map is not None:
-                device_map[device.sys_name] = dev_map
+            device_map.update(await self.__attach_device(device))
+
         return device_map
 
     def __find_devices(self, vendor_id: str, product_id: str) -> Iterable[Device]:
@@ -83,8 +89,7 @@ class DeviceMonitor:
             self.__options.print_debug("Found device: {!r}".format(dev))
             if dev.is_a_hub():
                 return await self.__add_hub(dev)
-            attached_device = await self.__domain.attach_device_to_xen(dev)
-            ret[dev.sys_name] = attached_device
+            ret.update(await self.__attach_device(dev))
 
         self.__specific_devices.append((vendor_id, product_id))
         return ret
