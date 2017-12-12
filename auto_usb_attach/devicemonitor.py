@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict, cast, Iterable, Optional
+from typing import Dict
 
 from .xenusb import XenUsb
 from .device import Device
