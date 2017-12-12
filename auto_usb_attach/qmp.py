@@ -21,22 +21,25 @@ class QmpSocket:
                 self.__options.print_very_verbose("Connecting to QMP")
                 self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
                 self.__connected = True
+                self.__connect_info = await self.__receive_line()
+                if "error" in self.__connect_info:
+                    raise QmpError(self.__connect_info)
+                await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
+                await self.__receive_line()
             finally:
                 self.__connect_lock.release()
 
-            self.__connect_info = await self.receive()
-            if "error" in self.__connect_info:
-                raise QmpError(self.__connect_info)
-            await self.send(json.dumps({"execute": "qmp_capabilities"}))
-
         return self.__connect_info
 
-    async def send(self, data: str) -> Dict[str, Any]:
-        await self.__connect_to_qmp()
+    async def __send_line(self, data: str):
         self.__options.print_very_verbose(data)
         self.__writer.write(bytes(data, "utf-8"))
         # Give Qmp time to respond.
         await asyncio.sleep(sleep_time*1.5)
+
+    async def send(self, data: str) -> Dict[str, Any]:
+        await self.__connect_to_qmp()
+        await self.__send_line(data)
         return await self.receive()
 
     async def receive(self):
