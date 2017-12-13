@@ -65,9 +65,8 @@ class Options:
         required_group = parser.add_argument_group("required arguments")
         required_group.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store",
                                     required=True)
-        required_group.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
-                                                        "can be specified multiple times", type=str,
-                                    action="append", required=True)
+        parser.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
+                                                "can be specified multiple times", type=str, action="append")
         parser.add_argument("-s", "--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
                             default=None)
         parser.add_argument("-n", "--no-wait", help="Do not wait for the domain, exit immediately if it's not running",
@@ -80,9 +79,13 @@ class Options:
     def __init__(self, args: List[str]):
         parser = self.__get_argument_parser()
         parsed = parser.parse_args(args)
+
+        if parsed.hub is None and parsed.specific_device is None:
+            parser.error("Must specify at least one --hub or --specific-device")
+
         self.__verbosity = -1 if parsed.quiet else parsed.verbose
         self.__domain = parsed.domain
-        self.__hubs = parsed.hub
+        self.__hubs = parsed.hub or []
         self.__qmp_socket = parsed.qmp_socket
         self.__no_wait = parsed.no_wait
         self.__args = args
