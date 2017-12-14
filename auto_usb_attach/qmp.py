@@ -14,8 +14,7 @@ num_events = 2
 class QmpSocket:
     async def __connect_to_qmp(self) -> Dict[str, Any]:
         if not self.__connected:
-            try:
-                await self.__connect_lock.acquire()
+            with (await self.__connect_lock):
                 if self.__connected:
                     return self.__connect_info
                 self.__options.print_very_verbose("Connecting to QMP")
@@ -26,8 +25,6 @@ class QmpSocket:
                     raise QmpError(self.__connect_info)
                 await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
                 await self.__receive_line()
-            finally:
-                self.__connect_lock.release()
 
         return self.__connect_info
 
