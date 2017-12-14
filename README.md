@@ -102,6 +102,7 @@ and react appropriately to them.
 ### Still TODO ###
 
 * Get rid of the globals in __main__
+* Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
