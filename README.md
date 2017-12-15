@@ -76,7 +76,7 @@ configuration:
 
     device_model_args = [
         "-chardev",
-        "socket,id=usb-attach,path=/run/xen/qmp-usb-Windows,server,nowait",
+        "socket,id=usb-attach,path=/run/xen/qmp-usb-foo,server,nowait",
         "-mon",
         "chardev=usb-attach,mode=control"
     ]
@@ -100,7 +100,10 @@ and react appropriately to them.
 
 ### Contribution guidelines ###
 
-* TBD.  Submit a pull request, and we'll talk.
+* Try to stick with the style
+  * Making things more pythonic is acceptable, since I'm still pretty
+  new to python in general.
+* Submit a pull request, and we'll talk.
 
 ### Still TODO ###
 
@@ -108,7 +111,8 @@ and react appropriately to them.
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
+* Gracefully handle VM shutdown/reboot (QMP should send an event if
+we're connected)
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
 * (Bonus) Figure out how to create a qmp control socket at runtime
