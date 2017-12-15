@@ -16,7 +16,7 @@ from .xenusb import XenUsb
 
 class MainThread:
     async def add_device(self, domain: XenDomain, device: Device):
-        self.__options.print_very_verbose("add_device event fired: {}".format(device))
+        self.__options.print_debug("add_device event fired: {}".format(device))
         if device.sys_name not in self.__device_map:
             self.__options.print_verbose("Device added: {}".format(device.device_path))
 
@@ -28,7 +28,7 @@ class MainThread:
                 pass
 
     async def remove_device(self, domain: XenDomain, device: Device):
-        self.__options.print_very_verbose("remove_device event fired: {}".format(device))
+        self.__options.print_debug("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
             self.__options.print_verbose("Removing device: {}".format(device.device_path))
             if await domain.detach_device_from_xen(self.__device_map[device.sys_name]):
