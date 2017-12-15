@@ -7,7 +7,6 @@ from .prioritydict import PriorityDict
 from .options import Options
 from .xenusb import XenUsb
 
-sleep_time = 0.5
 num_events = 2
 
 
@@ -36,16 +35,16 @@ class QmpSocket:
         await self.__connect_to_qmp()
         await self.__send_line(data)
 
-        # Give Qmp time to respond.
-        await asyncio.sleep(sleep_time*1.5)
         return await self.receive()
 
     async def receive(self):
         if self.__monitoring:
             self.__options.print_debug("Getting record from queue")
-            data = (await self.__monitor_queue.get()).data
-            self.__monitor_queue.task_done()
-            self.__options.print_very_verbose("{!r}".format(data))
+            with (await self.__response_available):
+                await self.__response_available.wait()
+                data = (await self.__monitor_queue.get()).data
+                self.__monitor_queue.task_done()
+                self.__options.print_very_verbose("{!r}".format(data))
         else:
             data = await self.__receive_line()
             self.__options.print_very_verbose("{!r}".format(data))
@@ -72,16 +71,13 @@ class QmpSocket:
             self.__options.print_debug("Connecting to QMP inside of monitor()")
             await self.__connect_to_qmp()
             while True:
-                for i in range(0, num_events):
-                    try:
-                        data = await asyncio.wait_for(self.__receive_line(), .1)
-                        priority = 0 if "error" in data else 1 if "return" in data else 2
-                        self.__options.print_debug("Using priority {}".format(priority))
-                        await self.__monitor_queue.put(PriorityDict(priority, data))
-                    except asyncio.futures.TimeoutError:
-                        pass
-
-                await asyncio.sleep(sleep_time)
+                data = await self.__receive_line()
+                priority = 0 if "error" in data else 1 if "return" in data else 2
+                self.__options.print_debug("Using priority {}".format(priority))
+                await self.__monitor_queue.put(PriorityDict(priority, data))
+                if priority < 2:
+                    with (await self.__response_available):
+                        self.__response_available.notify()
         finally:
             self.__monitoring = False
             self.__monitor_queue = None
@@ -97,6 +93,7 @@ class QmpSocket:
         self.__monitoring = False
         self.__monitor_queue = None
         self.__connect_lock = asyncio.Lock()
+        self.__response_available = asyncio.Condition()
 
     def __repr__(self):
         return "QmpSocket({!r}, {!r})".format(self.__options, self.__path)
