@@ -17,21 +17,26 @@ This script attempts to fix that shortcoming.
 
 ### Usage ###
 
-    usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN -u HUB
+    usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN [-u HUB] [-s QMP_SOCKET]
+                              [-n] [-x SPECIFIC_DEVICE]
 
     optional arguments:
       -h, --help            show this help message and exit
       -v, --verbose         increase verbosity
       -q, --quiet           be very quiet
-      --qmp-socket QMP_SOCKET
+      -u HUB, --hub HUB     usb hub to monitor (for example, "usb3", "1-1") can be
+                            specified multiple times
+      -s QMP_SOCKET, --qmp-socket QMP_SOCKET
                             UNIX domain socket to connect to
-
+      -n, --no-wait         Do not wait for the domain, exit immediately if it's
+                            not running
+      -x SPECIFIC_DEVICE, --specific-device SPECIFIC_DEVICE
+                            Specific device to watch for (<vendor-id>:<product-
+                            id>)
 
     required arguments:
       -d DOMAIN, --domain DOMAIN
                             domain name to monitor
-      -u HUB, --hub HUB     usb hub to monitor (for example, "usb3", "1-1") can be
-                            specified multiple times
 
 ### Requirements ###
 
@@ -97,6 +102,7 @@ and react appropriately to them.
 ### Still TODO ###
 
 * Get rid of the globals in __main__
+* Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
 * Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
@@ -104,7 +110,9 @@ and react appropriately to them.
 * Qmp.__get_usb_devices could probably cache its data
 * Batch calls to QMP instead of getting results each time
   * This should help with startup time, in addition to the above.
-* Watch for specific devices (vendor:product) in addition to entire hubs
+* Get rid of the asyncio.sleep() calls.  There's probably a better
+synchronization method, maybe using an async Condition or Event.
+  * This would preclude the need for the above TODO.
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
