@@ -35,9 +35,9 @@ class QmpSocket:
         await self.__connect_to_qmp()
         await self.__send_line(data)
 
-        return await self.receive()
+        return await self.__receive_response()
 
-    async def receive(self):
+    async def __receive_response(self):
         if self.__monitoring:
             self.__options.print_debug("Getting record from queue")
             with (await self.__response_available):
