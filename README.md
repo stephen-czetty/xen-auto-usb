@@ -4,9 +4,11 @@ Python script for attaching usb devices to a HVM xen domain
 
 ### What's the point? ###
 
-The USB emulation in xen (4.8) leaves some to be desired.  libxl doesn't provide a facility
-to hot plug a device when it's been physically plugged into a hub, and it also doesn't keep
-enough information around to remove it from the VM after it's been unplugged.
+The USB emulation in xen (up to at least 4.9) leaves some to be
+desired.  libxl doesn't provide a facility to hot plug a device
+when it's been physically plugged into a hub, and it also doesn't
+keep enough information around to remove it from the VM after it's
+been unplugged.
 
 This script attempts to fix that shortcoming.
 
@@ -40,7 +42,7 @@ This script attempts to fix that shortcoming.
 
 ### Requirements ###
 
-* python 3.6
+* python >= 3.6
 * pyxs >= 0.4.1
 * pyudev >= 0.21.0
 
@@ -54,7 +56,7 @@ configuration:
 
      usbctrl = [ 'version=3,ports=15' ]
 
-or, via xl:
+or via xl:
 
     xl usbctrl-attach <domain> version=3 ports=15
 
@@ -74,7 +76,7 @@ configuration:
 
     device_model_args = [
         "-chardev",
-        "socket,id=usb-attach,path=/run/xen/qmp-usb-Windows,server,nowait",
+        "socket,id=usb-attach,path=/run/xen/qmp-usb-foo,server,nowait",
         "-mon",
         "chardev=usb-attach,mode=control"
     ]
@@ -91,13 +93,17 @@ and react appropriately to them.
 
 * Monitors udev for device additions and removals on the specified usb
   buses
-* Automatically adds or removes those devices from the xen domain
+* Monitors for specific devices (<vendor>:<product>)
+* Automatically adds or removes those devices to or from the xen domain
 * Automatically removes any "stale" devices on startup (devices
   that were attached, but subsequently removed before startup.)
 
 ### Contribution guidelines ###
 
-* TBD.  Submit a pull request, and we'll talk.
+* Try to stick with the style
+  * Making things more pythonic is acceptable, since I'm still pretty
+  new to python in general.
+* Submit a pull request, and we'll talk.
 
 ### Still TODO ###
 
@@ -105,14 +111,10 @@ and react appropriately to them.
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Gracefully handle VM shutdown/reboot (QMP should send an event if we're connected)
+* Gracefully handle VM shutdown/reboot (QMP should send an event if
+we're connected)
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
-* Batch calls to QMP instead of getting results each time
-  * This should help with startup time, in addition to the above.
-* Get rid of the asyncio.sleep() calls.  There's probably a better
-synchronization method, maybe using an async Condition or Event.
-  * This would preclude the need for the above TODO.
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
