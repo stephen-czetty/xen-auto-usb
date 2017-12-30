@@ -115,6 +115,8 @@ and react appropriately to them.
 we're connected)
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
+* Drop privledges after connecting to qmp socket.  (May conflict with
+  reconnect after reboot, though; think about this.)
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
