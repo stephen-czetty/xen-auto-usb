@@ -18,8 +18,8 @@ class QmpSocket:
                 self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
                 self.__connected = True
                 self.__connect_info = await self.__receive_line()
-                if "error" in self.__connect_info:
-                    raise QmpError(self.__connect_info)
+                if self.__connect_info is None or "error" in self.__connect_info:
+                    raise QmpError(self.__connect_info or {"error": "EOF"})
                 await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
                 await self.__receive_line()
 
@@ -45,14 +45,16 @@ class QmpSocket:
                 self.__options.print_very_verbose("{!r}".format(data))
         else:
             data = await self.__receive_line()
+            if data is None:
+                raise QmpError({"error": "EOF"})
             self.__options.print_very_verbose("{!r}".format(data))
 
         return data
 
-    async def __receive_line(self) -> Dict[str, Any]:
+    async def __receive_line(self) -> Optional[Dict[str, Any]]:
         data = await self.__reader.readline()
         if len(data) == 0:
-            return {"__eof__": True}
+            return None
         data = str(data, "utf-8")
         self.__options.print_debug(data)
         return json.loads(data)
@@ -72,7 +74,7 @@ class QmpSocket:
             await self.__connect_to_qmp()
             while True:
                 data = await self.__receive_line()
-                if "__eof__" in data:
+                if data is None:
                     return
                 priority = 0 if "error" in data else 1 if "return" in data else 2
                 self.__options.print_debug("Using priority {}".format(priority))
