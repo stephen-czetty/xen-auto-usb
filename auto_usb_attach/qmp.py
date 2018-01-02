@@ -51,6 +51,8 @@ class QmpSocket:
 
     async def __receive_line(self) -> Dict[str, Any]:
         data = await self.__reader.readline()
+        if len(data) == 0:
+            return {"__eof__": True}
         data = str(data, "utf-8")
         self.__options.print_debug(data)
         return json.loads(data)
@@ -70,6 +72,8 @@ class QmpSocket:
             await self.__connect_to_qmp()
             while True:
                 data = await self.__receive_line()
+                if "__eof__" in data:
+                    return
                 priority = 0 if "error" in data else 1 if "return" in data else 2
                 self.__options.print_debug("Using priority {}".format(priority))
                 await self.__monitor_queue.put(PriorityDict(priority, data))
