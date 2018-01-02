@@ -113,7 +113,8 @@ class QmpSocket:
         self.__domain_shutdown = domain_shutdown
 
     def __repr__(self):
-        return "QmpSocket({!r}, {!r})".format(self.__options, self.__path)
+        return "QmpSocket({!r}, {!r}, {!r}, {!r})".format(self.__options, self.__path, self.__domain_reboot,
+                                                          self.__domain_shutdown)
 
     def __enter__(self):
         return self

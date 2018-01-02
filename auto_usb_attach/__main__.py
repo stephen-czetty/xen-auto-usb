@@ -15,7 +15,7 @@ from .xenusb import XenUsb
 
 
 class MainThread:
-    async def add_device(self, domain: XenDomain, device: Device):
+    async def __add_device(self, domain: XenDomain, device: Device):
         self.__options.print_debug("add_device event fired: {}".format(device))
         if device.sys_name not in self.__device_map:
             self.__options.print_verbose("Device added: {}".format(device.device_path))
@@ -27,7 +27,7 @@ class MainThread:
             except XenError:
                 pass
 
-    async def remove_device(self, domain: XenDomain, device: Device):
+    async def __remove_device(self, domain: XenDomain, device: Device):
         self.__options.print_debug("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
             self.__options.print_verbose("Removing device: {}".format(device.device_path))
@@ -35,14 +35,14 @@ class MainThread:
                 with (await self.__device_map_lock):
                     del self.__device_map[device.sys_name]
 
-    async def domain_reboot(self, domain: XenDomain):
+    async def __domain_reboot(self, domain: XenDomain):
         self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
 
-    async def domain_shutdown(self, domain: XenDomain):
+    async def __domain_shutdown(self, domain: XenDomain):
         self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
 
     @staticmethod
-    async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
+    async def __remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
         async for dev in domain.get_attached_devices():
             if dev not in devices:
                 await domain.detach_device_from_xen(dev)
@@ -59,10 +59,10 @@ class MainThread:
                     qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
 
                 monitor = DeviceMonitor(self.__options, xen_domain)
-                monitor.device_added += partial(self.add_device, xen_domain)
-                monitor.device_removed += partial(self.remove_device, xen_domain)
-                qmp.domain_reboot += partial(self.domain_reboot, xen_domain)
-                qmp.domain_shutdown += partial(self.domain_shutdown, xen_domain)
+                monitor.device_added += partial(self.__add_device, xen_domain)
+                monitor.device_removed += partial(self.__remove_device, xen_domain)
+                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain)
+                qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain)
 
                 try:
                     with (await self.__device_map_lock):
@@ -70,7 +70,7 @@ class MainThread:
                             self.__device_map.update(await monitor.add_hub(h))
                         for d in self.__options.specific_devices:
                             self.__device_map.update(await monitor.add_specific_device(d))
-                        await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+                        await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
 
                     await monitor.monitor_devices()
                 except KeyboardInterrupt:
