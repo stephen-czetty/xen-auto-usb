@@ -35,6 +35,12 @@ class MainThread:
                 with (await self.__device_map_lock):
                     del self.__device_map[device.sys_name]
 
+    async def domain_reboot(self, domain: XenDomain):
+        self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
+
+    async def domain_shutdown(self, domain: XenDomain):
+        self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
+
     @staticmethod
     async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
         async for dev in domain.get_attached_devices():
@@ -55,6 +61,8 @@ class MainThread:
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.add_device, xen_domain)
                 monitor.device_removed += partial(self.remove_device, xen_domain)
+                qmp.domain_reboot += partial(self.domain_reboot, xen_domain)
+                qmp.domain_shutdown += partial(self.domain_shutdown, xen_domain)
 
                 try:
                     with (await self.__device_map_lock):

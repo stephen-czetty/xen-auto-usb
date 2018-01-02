@@ -91,14 +91,14 @@ class Options:
         self.__args = args
         self.__specific_devices = parsed.specific_device or []
 
-        self.print_very_verbose("Command line arguments:")
-        self.print_very_verbose("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
+        self.print_unless_quiet("Command line arguments:")
+        self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
                                                        "Quiet" if self.is_quiet else "Normal"))
-        self.print_very_verbose("Domain: {}".format(self.domain))
-        self.print_very_verbose("Hubs: {}".format(self.hubs))
-        self.print_very_verbose("No Wait: {}".format(self.no_wait))
-        self.print_very_verbose("Specific Devices: {}".format(self.specific_devices))
+        self.print_unless_quiet("Domain: {}".format(self.domain))
+        self.print_unless_quiet("Hubs: {}".format(self.hubs))
+        self.print_unless_quiet("No Wait: {}".format(self.no_wait))
+        self.print_unless_quiet("Specific Devices: {}".format(self.specific_devices))
 
     def __repr__(self):
         return "Options({!r})".format(self.__args)
