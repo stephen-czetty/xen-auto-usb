@@ -7,6 +7,7 @@ import os
 import psutil
 
 import asyncio
+from pyxs import PyXSError
 
 from auto_usb_attach.qmp import Qmp
 from .options import Options
@@ -69,10 +70,10 @@ class MainThread:
             if dev not in devices:
                 await domain.detach_device_from_xen(dev)
 
-    def run(self):
+    def run(self) -> None:
         qmp = Qmp(self.__options)
 
-        async def usb_monitor():
+        async def usb_monitor() -> None:
             with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
                 if xen_domain is None:
                     return
@@ -86,17 +87,23 @@ class MainThread:
                 qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
                 qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
 
-                try:
-                    with (await self.__device_map_lock):
-                        for h in self.__options.hubs:
-                            self.__device_map.update(await monitor.add_hub(h))
-                        for d in self.__options.specific_devices:
-                            self.__device_map.update(await monitor.add_specific_device(d))
-                        await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+                while True:
+                    try:
+                        with (await self.__device_map_lock):
+                            for h in self.__options.hubs:
+                                self.__device_map.update(await monitor.add_hub(h))
+                            for d in self.__options.specific_devices:
+                                self.__device_map.update(await monitor.add_specific_device(d))
+                            await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+                            break
+                    except PyXSError:
+                        await asyncio.sleep(1.0)
 
+                try:
                     await monitor.monitor_devices()
+                    return
                 except KeyboardInterrupt:
-                    pass
+                    return
 
         try:
             if self.__options.qmp_socket is not None:
