@@ -3,6 +3,8 @@
 import sys
 from functools import partial
 from typing import List, Dict
+import os
+import psutil
 
 import asyncio
 
@@ -15,7 +17,7 @@ from .xenusb import XenUsb
 
 
 class MainThread:
-    async def __add_device(self, domain: XenDomain, device: Device):
+    async def __add_device(self, domain: XenDomain, device: Device) -> None:
         self.__options.print_debug("add_device event fired: {}".format(device))
         if device.sys_name not in self.__device_map:
             self.__options.print_verbose("Device added: {}".format(device.device_path))
@@ -27,7 +29,7 @@ class MainThread:
             except XenError:
                 pass
 
-    async def __remove_device(self, domain: XenDomain, device: Device):
+    async def __remove_device(self, domain: XenDomain, device: Device) -> None:
         self.__options.print_debug("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
             self.__options.print_verbose("Removing device: {}".format(device.device_path))
@@ -35,10 +37,21 @@ class MainThread:
                 with (await self.__device_map_lock):
                     del self.__device_map[device.sys_name]
 
-    async def __domain_reboot(self, domain: XenDomain):
-        self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
+    @staticmethod
+    def __restart_program():
+        # Adapted from https://stackoverflow.com/a/33334183
+        p = psutil.Process(os.getpid())
+        for handler in p.open_files() + p.connections():
+            os.close(handler.fd)
 
-    async def __domain_shutdown(self, domain: XenDomain):
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+
+    async def __domain_reboot(self, domain: XenDomain) -> None:
+        self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
+        self.__restart_program()
+
+    async def __domain_shutdown(self, domain: XenDomain) -> None:
         self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
 
     @staticmethod
