@@ -42,13 +42,14 @@ class MainThread:
         self.__options.print_very_verbose("sleeping for 5 seconds to allow domain to shut down")
         await asyncio.sleep(5.0)
 
+        self.__options.print_unless_quiet("Restarting.")
+
         # Adapted from https://stackoverflow.com/a/33334183
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():
             os.close(handler.fd)
 
         python = sys.executable
-        self.__options.print_unless_quiet("Restarting.")
         os.execl(python, python, *sys.argv)
 
     async def __domain_reboot(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
