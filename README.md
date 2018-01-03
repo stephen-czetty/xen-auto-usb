@@ -126,6 +126,6 @@ and react appropriately to them.
 
 ### Copyright and License ###
 
-This work is Copyright (c) 2017 by Stephen M. Czetty, and is released
+This work is Copyright (c) 2017, 2018 by Stephen M. Czetty, and is released
 under the GPLv3 license (see LICENSE)
 
