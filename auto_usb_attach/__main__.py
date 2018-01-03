@@ -37,8 +37,10 @@ class MainThread:
                 with (await self.__device_map_lock):
                     del self.__device_map[device.sys_name]
 
-    @staticmethod
-    def __restart_program():
+    async def __restart_program(self):
+        self.__options.print_very_verbose("sleeping for 5 seconds to allow domain to shut down")
+        await asyncio.sleep(5.0)
+
         # Adapted from https://stackoverflow.com/a/33334183
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():
@@ -49,7 +51,7 @@ class MainThread:
 
     async def __domain_reboot(self, domain: XenDomain) -> None:
         self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
-        self.__restart_program()
+        await self.__restart_program()
 
     async def __domain_shutdown(self, domain: XenDomain) -> None:
         self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
