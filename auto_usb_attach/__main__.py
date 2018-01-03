@@ -52,18 +52,16 @@ class MainThread:
         python = sys.executable
         os.execl(python, python, *sys.argv)
 
-    async def __domain_reboot(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
+    async def __domain_reboot(self, domain: XenDomain) -> None:
         self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
-        monitor.shutdown()
         await self.__restart_program()
 
     async def __domain_shutdown(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
         self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
-        monitor.shutdown()
         if self.__options.wait_on_shutdown:
             await self.__restart_program()
         else:
-            sys.exit()
+            monitor.shutdown()
 
     @staticmethod
     async def __remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
@@ -85,7 +83,7 @@ class MainThread:
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.__add_device, xen_domain)
                 monitor.device_removed += partial(self.__remove_device, xen_domain)
-                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
+                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain)
                 qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
 
                 while True:
@@ -126,10 +124,7 @@ class MainThread:
 
 
 def main(args: List[str]) -> None:
-    try:
-        MainThread(args).run()
-    except SystemExit:
-        pass
+    MainThread(args).run()
 
 
 if __name__ == "__main__":
