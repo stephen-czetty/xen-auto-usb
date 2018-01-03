@@ -118,7 +118,10 @@ class MainThread:
 
 
 def main(args: List[str]) -> None:
-    MainThread(args).run()
+    try:
+        MainThread(args).run()
+    except SystemExit:
+        pass
 
 
 if __name__ == "__main__":
