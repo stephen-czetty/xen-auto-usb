@@ -35,6 +35,8 @@ This script attempts to fix that shortcoming.
       -x SPECIFIC_DEVICE, --specific-device SPECIFIC_DEVICE
                             Specific device to watch for (<vendor-id>:<product-
                             id>)
+      -w, --wait-on-shutdown
+                            Wait for a new domain on domain shutdown. (Do not exit)
 
     required arguments:
       -d DOMAIN, --domain DOMAIN
@@ -97,6 +99,7 @@ and react appropriately to them.
 * Automatically adds or removes those devices to or from the xen domain
 * Automatically removes any "stale" devices on startup (devices
   that were attached, but subsequently removed before startup.)
+* Correctly recovers from a domain reboot (and shutdown with -w)
 
 ### Contribution guidelines ###
 
@@ -107,16 +110,16 @@ and react appropriately to them.
 
 ### Still TODO ###
 
-* Get rid of the globals in __main__
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Gracefully handle VM shutdown/reboot (QMP should send an event if
-we're connected)
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
-* Drop privileges after connecting to qmp socket.  (May conflict with
-  reconnect after reboot, though; think about this.)
+* Drop privileges after connecting to qmp socket.
+  * We'll need to reset euid to 0 before execl in
+    MainThread.__restart_program
+  * Or, we'll have to write a C wrapper that has the setuid bit, and
+    we can permanently drop privileges.
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently

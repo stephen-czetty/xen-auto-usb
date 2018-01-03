@@ -39,6 +39,10 @@ class Options:
     def no_wait(self) -> bool:
         return self.__no_wait
 
+    @property
+    def wait_on_shutdown(self) -> bool:
+        return self.__wait_on_shutdown
+
     def print_debug(self, string: str):
         if self.is_debug:
             print("Debug: {}".format(string))
@@ -72,7 +76,9 @@ class Options:
         parser.add_argument("-n", "--no-wait", help="Do not wait for the domain, exit immediately if it's not running",
                             dest="no_wait", action="store_true")
         parser.add_argument("-x", "--specific-device", help="Specific device to watch for (<vendor-id>:<product-id>)",
-                            type=str, action="append")
+                            type=str, action="append", dest="specific_device")
+        parser.add_argument("-w", "--wait-on-shutdown", help="Wait for a new domain on domain shutdown. (Do not exit)",
+                            dest="wait_on_shutdown", action="store_true")
 
         return parser
 
@@ -90,6 +96,7 @@ class Options:
         self.__no_wait = parsed.no_wait
         self.__args = args
         self.__specific_devices = parsed.specific_device or []
+        self.__wait_on_shutdown = parsed.wait_on_shutdown
 
         self.print_unless_quiet("Command line arguments:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
@@ -99,6 +106,7 @@ class Options:
         self.print_unless_quiet("Hubs: {}".format(self.hubs))
         self.print_unless_quiet("No Wait: {}".format(self.no_wait))
         self.print_unless_quiet("Specific Devices: {}".format(self.specific_devices))
+        self.print_unless_quiet("Wait on Shutdown: {}".format(self.wait_on_shutdown))
 
     def __repr__(self):
         return "Options({!r})".format(self.__args)

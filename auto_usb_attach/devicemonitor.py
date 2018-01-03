@@ -101,11 +101,17 @@ class DeviceMonitor:
         self.__specific_devices.append((vendor_id, product_id))
         return ret
 
+    def shutdown(self):
+        self.__shutdown = True
+
     async def monitor_devices(self) -> None:
         monitor = pyudev.Monitor.from_netlink(self.__context)
         monitor.filter_by('usb')
 
         while True:
+            if self.__shutdown:
+                break
+
             device = monitor.poll(0)
             if device is None:
                 await asyncio.sleep(1.0)
@@ -125,6 +131,7 @@ class DeviceMonitor:
         self.__domain = xen_domain
         self.__root_devices = []
         self.__specific_devices = []
+        self.__shutdown = False
 
         self.device_added = AsyncEvent()
         self.device_removed = AsyncEvent()
