@@ -3,8 +3,11 @@
 import sys
 from functools import partial
 from typing import List, Dict
+import os
+import psutil
 
 import asyncio
+from pyxs import PyXSError
 
 from auto_usb_attach.qmp import Qmp
 from .options import Options
@@ -15,7 +18,7 @@ from .xenusb import XenUsb
 
 
 class MainThread:
-    async def add_device(self, domain: XenDomain, device: Device):
+    async def __add_device(self, domain: XenDomain, device: Device) -> None:
         self.__options.print_debug("add_device event fired: {}".format(device))
         if device.sys_name not in self.__device_map:
             self.__options.print_verbose("Device added: {}".format(device.device_path))
@@ -27,7 +30,7 @@ class MainThread:
             except XenError:
                 pass
 
-    async def remove_device(self, domain: XenDomain, device: Device):
+    async def __remove_device(self, domain: XenDomain, device: Device) -> None:
         self.__options.print_debug("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
             self.__options.print_verbose("Removing device: {}".format(device.device_path))
@@ -35,16 +38,41 @@ class MainThread:
                 with (await self.__device_map_lock):
                     del self.__device_map[device.sys_name]
 
+    async def __restart_program(self):
+        self.__options.print_very_verbose("sleeping for 5 seconds to allow domain to shut down")
+        await asyncio.sleep(5.0)
+
+        self.__options.print_unless_quiet("Restarting.")
+
+        # Adapted from https://stackoverflow.com/a/33334183
+        p = psutil.Process(os.getpid())
+        for handler in p.open_files() + p.connections():
+            os.close(handler.fd)
+
+        python = sys.executable
+        os.execl(python, python, *sys.argv)
+
+    async def __domain_reboot(self, domain: XenDomain) -> None:
+        self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
+        await self.__restart_program()
+
+    async def __domain_shutdown(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
+        self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
+        if self.__options.wait_on_shutdown:
+            await self.__restart_program()
+        else:
+            monitor.shutdown()
+
     @staticmethod
-    async def remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
+    async def __remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
         async for dev in domain.get_attached_devices():
             if dev not in devices:
                 await domain.detach_device_from_xen(dev)
 
-    def run(self):
+    def run(self) -> None:
         qmp = Qmp(self.__options)
 
-        async def usb_monitor():
+        async def usb_monitor() -> None:
             with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
                 if xen_domain is None:
                     return
@@ -53,20 +81,28 @@ class MainThread:
                     qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
 
                 monitor = DeviceMonitor(self.__options, xen_domain)
-                monitor.device_added += partial(self.add_device, xen_domain)
-                monitor.device_removed += partial(self.remove_device, xen_domain)
+                monitor.device_added += partial(self.__add_device, xen_domain)
+                monitor.device_removed += partial(self.__remove_device, xen_domain)
+                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain)
+                qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
+
+                while True:
+                    try:
+                        with (await self.__device_map_lock):
+                            for h in self.__options.hubs:
+                                self.__device_map.update(await monitor.add_hub(h))
+                            for d in self.__options.specific_devices:
+                                self.__device_map.update(await monitor.add_specific_device(d))
+                            await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+                            break
+                    except PyXSError:
+                        await asyncio.sleep(1.0)
 
                 try:
-                    with (await self.__device_map_lock):
-                        for h in self.__options.hubs:
-                            self.__device_map.update(await monitor.add_hub(h))
-                        for d in self.__options.specific_devices:
-                            self.__device_map.update(await monitor.add_specific_device(d))
-                        await self.remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
-
                     await monitor.monitor_devices()
+                    return
                 except KeyboardInterrupt:
-                    pass
+                    return
 
         try:
             if self.__options.qmp_socket is not None:

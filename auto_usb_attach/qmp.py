@@ -6,8 +6,7 @@ from collections import AsyncIterable
 from .prioritydict import PriorityDict
 from .options import Options
 from .xenusb import XenUsb
-
-num_events = 2
+from .asyncevent import AsyncEvent
 
 
 class QmpSocket:
@@ -20,8 +19,8 @@ class QmpSocket:
                 self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
                 self.__connected = True
                 self.__connect_info = await self.__receive_line()
-                if "error" in self.__connect_info:
-                    raise QmpError(self.__connect_info)
+                if self.__connect_info is None or "error" in self.__connect_info:
+                    raise QmpError(self.__connect_info or {"error": "EOF"})
                 await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
                 await self.__receive_line()
 
@@ -47,15 +46,26 @@ class QmpSocket:
                 self.__options.print_very_verbose("{!r}".format(data))
         else:
             data = await self.__receive_line()
+            if data is None:
+                raise QmpError({"error": "EOF"})
             self.__options.print_very_verbose("{!r}".format(data))
 
         return data
 
-    async def __receive_line(self) -> Dict[str, Any]:
+    async def __receive_line(self) -> Optional[Dict[str, Any]]:
         data = await self.__reader.readline()
+        if len(data) == 0:
+            return None
         data = str(data, "utf-8")
         self.__options.print_debug(data)
         return json.loads(data)
+
+    async def __handle_event(self, data: Dict[str, Any]):
+        if "event" in data:
+            if data["event"] == "RESET":
+                await self.__domain_reboot.fire()
+            elif data["event"] == "SHUTDOWN":
+                await self.__domain_shutdown.fire()
 
     def close(self):
         self.__keep_open = False
@@ -72,17 +82,22 @@ class QmpSocket:
             await self.__connect_to_qmp()
             while True:
                 data = await self.__receive_line()
+                if data is None:
+                    return
                 priority = 0 if "error" in data else 1 if "return" in data else 2
                 self.__options.print_debug("Using priority {}".format(priority))
-                await self.__monitor_queue.put(PriorityDict(priority, data))
                 if priority < 2:
+                    await self.__monitor_queue.put(PriorityDict(priority, data))
                     with (await self.__response_available):
                         self.__response_available.notify()
+                else:
+                    await self.__handle_event(data)
         finally:
             self.__monitoring = False
             self.__monitor_queue = None
 
-    def __init__(self, options: Options, path: str, keep_open: bool):
+    def __init__(self, options: Options, path: str, keep_open: bool, domain_reboot: AsyncEvent,
+                 domain_shutdown: AsyncEvent):
         self.__options = options
         self.__path = path
         self.__keep_open = keep_open
@@ -94,9 +109,12 @@ class QmpSocket:
         self.__monitor_queue = None
         self.__connect_lock = asyncio.Lock()
         self.__response_available = asyncio.Condition()
+        self.__domain_reboot = domain_reboot
+        self.__domain_shutdown = domain_shutdown
 
     def __repr__(self):
-        return "QmpSocket({!r}, {!r})".format(self.__options, self.__path)
+        return "QmpSocket({!r}, {!r}, {!r}, {!r})".format(self.__options, self.__path, self.__domain_reboot,
+                                                          self.__domain_shutdown)
 
     def __enter__(self):
         return self
@@ -128,7 +146,8 @@ class QmpSocket:
 class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
         self.__qmp_socket = self.__qmp_socket or \
-            QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None)
+            QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None, self.domain_reboot,
+                      self.domain_shutdown)
         return self.__qmp_socket
 
     @staticmethod
@@ -243,6 +262,9 @@ class Qmp:
         self.__path = self.__options.qmp_socket
         self.__qmp_socket = None
 
+        self.domain_reboot = AsyncEvent()
+        self.domain_shutdown = AsyncEvent()
+
     def __repr__(self):
         return "Qmp({!r}, {!r})".format(self.__path, self.__options)
 
@@ -294,3 +316,6 @@ class QmpError(Exception):
 # For adding a chardev at runtime:
 # {"execute": "chardev-add", "arguments": {"id": "test", "backend": {"type": "socket", "data": { "addr": {"data": {"path": "/var/run/xen/qmp-test"}, "type": "unix"}}, "server": true, "wait": false}}}
 # I don't (yet) see a way to tell qmp to put this chardev into "mode=control" as done on the commandline.
+
+
+
