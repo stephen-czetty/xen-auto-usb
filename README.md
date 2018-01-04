@@ -47,7 +47,7 @@ This script attempts to fix that shortcoming.
 * python >= 3.6
 * pyxs >= 0.4.1
 * pyudev >= 0.21.0
-* psutil >= 5.3.1
+* psutil >= 5.0.0
 
 ### VM Setup ###
 
