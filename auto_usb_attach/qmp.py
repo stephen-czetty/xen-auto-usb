@@ -317,22 +317,5 @@ class QmpError(Exception):
 # {"execute": "chardev-add", "arguments": {"id": "test", "backend": {"type": "socket", "data": { "addr": {"data": {"path": "/var/run/xen/qmp-test"}, "type": "unix"}}, "server": true, "wait": false}}}
 # I don't (yet) see a way to tell qmp to put this chardev into "mode=control" as done on the commandline.
 
-# This gets throws when the domain shuts down:
-# Task exception was never retrieved
-# future: <Task finished coro=<Qmp.monitor_domain() done, defined at /home/steve/src/auto-usb-attach/auto_usb_attach/qmp.py:220> exception=JSONDecodeError('Expecting value: line 1 column 1 (char 0)',)>
-# Traceback (most recent call last):
-#   File "/home/steve/src/auto-usb-attach/auto_usb_attach/qmp.py", line 227, in monitor_domain
-#     await sock.monitor()
-#   File "/home/steve/src/auto-usb-attach/auto_usb_attach/qmp.py", line 74, in monitor
-#     data = await self.__receive_line()
-#   File "/home/steve/src/auto-usb-attach/auto_usb_attach/qmp.py", line 58, in __receive_line
-#     return json.loads(data)
-#   File "/usr/lib/python3.6/json/__init__.py", line 354, in loads
-#     return _default_decoder.decode(s)
-#   File "/usr/lib/python3.6/json/decoder.py", line 339, in decode
-#     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
-#   File "/usr/lib/python3.6/json/decoder.py", line 357, in raw_decode
-#     raise JSONDecodeError("Expecting value", s, err.value) from None
-# json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 
 
