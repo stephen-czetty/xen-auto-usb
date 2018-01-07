@@ -130,12 +130,15 @@ class XenDomain:
                 for port in XenDomain.__get_xs_list(c, c_path):
                     d_path = "{}/{}".format(c_path, port)
                     if XenDomain.__get_xs_value(c, d_path) == sys_name:
-                        usb_host = await self.__qmp.get_usb_host(int(controller), int(port)) or (-1, -1)
-                        self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
-                                                     .format(usb_host.controller,
-                                                             usb_host.port,
-                                                             usb_host.hostbus,
-                                                             usb_host.hostaddr))
+                        usb_host = await self.__qmp.get_usb_host(int(controller), int(port))
+                        if usb_host is not None:
+                            self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
+                                                         .format(usb_host.controller,
+                                                                 usb_host.port,
+                                                                 usb_host.hostbus,
+                                                                 usb_host.hostaddr))
+                        else:
+                            self.__options.print_verbose("Device {} not found".format(sys_name))
                         return usb_host
         return None
 
