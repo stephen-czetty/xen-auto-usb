@@ -21,7 +21,8 @@ class QmpSocket:
                 if self.__connect_info is None or "error" in self.__connect_info:
                     raise QmpError(self.__connect_info or {"error": "EOF"})
                 await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
-                await self.__receive_line()
+                data = await self.__receive_line()
+                self.__options.print_very_verbose("{!r}".format(data))
                 self.__connected = True
 
         return self.__connect_info
