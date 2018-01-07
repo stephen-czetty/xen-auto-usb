@@ -17,12 +17,12 @@ class QmpSocket:
                     return self.__connect_info
                 self.__options.print_very_verbose("Connecting to QMP")
                 self.__reader, self.__writer = await asyncio.open_unix_connection(self.__path)
-                self.__connected = True
                 self.__connect_info = await self.__receive_line()
                 if self.__connect_info is None or "error" in self.__connect_info:
                     raise QmpError(self.__connect_info or {"error": "EOF"})
                 await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
                 await self.__receive_line()
+                self.__connected = True
 
         return self.__connect_info
 
