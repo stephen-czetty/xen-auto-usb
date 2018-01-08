@@ -138,7 +138,6 @@ class XenDomain:
         return self.__qmp.get_usb_devices()
 
     def __init__(self, opts: Optional[Options], qmp: Qmp):
-        self.__domain_id = self.get_domain_id(opts.domain) if opts is not None else None
         self.__options = opts
         self.__qmp = qmp
         self.__xs_client = pyxs.Client()
@@ -147,6 +146,7 @@ class XenDomain:
         return "XenDomain({!r}, {!r})".format(self.__options, self.__qmp)
 
     def __enter__(self):
+        self.__domain_id = self.get_domain_id(self.__options.domain) if self.__options is not None else None
         if self.__domain_id is None:
             return None
         self.__xs_client.connect()
