@@ -146,10 +146,11 @@ class XenDomain:
         return "XenDomain({!r}, {!r})".format(self.__options, self.__qmp)
 
     def __enter__(self):
+        self.__xs_client.connect()
         self.__domain_id = self.get_domain_id(self.__options.domain) if self.__options is not None else None
         if self.__domain_id is None:
+            self.__xs_client.close()
             return None
-        self.__xs_client.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
