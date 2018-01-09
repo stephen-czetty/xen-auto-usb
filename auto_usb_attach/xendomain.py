@@ -140,7 +140,7 @@ class XenDomain:
     def __init__(self, opts: Optional[Options], qmp: Qmp):
         self.__options = opts
         self.__qmp = qmp
-        with pyxs.Client as self.__xs_client:
+        with pyxs.Client() as self.__xs_client:
             self.__domain_id = self.get_domain_id(self.__options.domain) if self.__options is not None else None
         self.__xs_client = pyxs.Client()
 
