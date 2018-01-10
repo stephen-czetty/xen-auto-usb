@@ -23,6 +23,7 @@ class QmpSocket:
                 await self.__send_line(json.dumps({"execute": "qmp_capabilities"}))
                 data = await self.__receive_line()
                 self.__options.print_very_verbose("{!r}".format(data))
+                self.__connect_event.set()
                 self.__connected = True
 
         return self.__connect_info
@@ -98,7 +99,7 @@ class QmpSocket:
             self.__monitor_queue = None
 
     def __init__(self, options: Options, path: str, keep_open: bool, domain_reboot: AsyncEvent,
-                 domain_shutdown: AsyncEvent):
+                 domain_shutdown: AsyncEvent, connect_event: asyncio.Event):
         self.__options = options
         self.__path = path
         self.__keep_open = keep_open
@@ -112,6 +113,7 @@ class QmpSocket:
         self.__response_available = asyncio.Condition()
         self.__domain_reboot = domain_reboot
         self.__domain_shutdown = domain_shutdown
+        self.__connect_event = connect_event
 
     def __repr__(self):
         return "QmpSocket({!r}, {!r}, {!r}, {!r})".format(self.__options, self.__path, self.__domain_reboot,
@@ -148,7 +150,7 @@ class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
         self.__qmp_socket = self.__qmp_socket or \
             QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None, self.domain_reboot,
-                      self.domain_shutdown)
+                      self.domain_shutdown, self.__connected_event)
         return self.__qmp_socket
 
     @staticmethod
@@ -257,11 +259,16 @@ class Qmp:
 
         self.__path = socket_path
 
+    @property
+    def is_connected(self) -> asyncio.Event:
+        return self.__connected_event
+
     def __init__(self, options: Options):
         super().__init__()
         self.__options = options
         self.__path = self.__options.qmp_socket
         self.__qmp_socket = None
+        self.__connected_event = asyncio.Event()
 
         self.domain_reboot = AsyncEvent()
         self.domain_shutdown = AsyncEvent()

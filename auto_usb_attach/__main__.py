@@ -79,6 +79,8 @@ class MainThread:
 
                 if self.__options.qmp_socket is None:
                     qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
+                else:
+                    await qmp.is_connected.wait()
 
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.__add_device, xen_domain)
