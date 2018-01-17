@@ -67,7 +67,7 @@ class MainThread:
 
     def __drop_privileges(self):
         # TODO: This is still pretty insecure.  We'll want a wrapper program that's setuid root.
-        ruid = os.getuid() or int(os.environ["SUDO_UID"]) or 0
+        ruid = int(os.getuid() or os.environ.get("SUDO_UID") or 0)
         self.__options.print_debug("Original uid: {}".format(ruid))
         os.setreuid(-1, ruid)
         self.__options.print_debug("New euid: {}".format(os.geteuid()))
