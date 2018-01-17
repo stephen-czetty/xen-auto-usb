@@ -44,6 +44,8 @@ class MainThread:
 
         self.__options.print_unless_quiet("Restarting.")
 
+        # Get back root permissions.  (TODO: this will need to go away once there's a setuid wrapper in place.)
+        os.setreuid(-1, 0)
         # Adapted from https://stackoverflow.com/a/33334183
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():
@@ -62,6 +64,13 @@ class MainThread:
             await self.__restart_program()
         else:
             monitor.shutdown()
+
+    def __drop_privileges(self):
+        # TODO: This is still pretty insecure.  We'll want a wrapper program that's setuid root.
+        ruid = os.getuid() or int(os.environ["SUDO_UID"]) or 0
+        self.__options.print_debug("Original uid: {}".format(ruid))
+        os.setreuid(-1, ruid)
+        self.__options.print_debug("New euid: {}".format(os.geteuid()))
 
     @staticmethod
     async def __remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
@@ -87,6 +96,9 @@ class MainThread:
                 monitor.device_removed += partial(self.__remove_device, xen_domain)
                 qmp.domain_reboot += partial(self.__domain_reboot, xen_domain)
                 qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
+
+                if self.__options.qmp_socket is not None:
+                    self.__drop_privileges()
 
                 while True:
                     try:
