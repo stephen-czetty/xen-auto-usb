@@ -5,6 +5,10 @@ from datetime import datetime
 
 class Options:
     @property
+    def program_name(self) -> str:
+        return self.__program_name
+
+    @property
     def is_verbose(self) -> bool:
         return self.__verbosity > 0
 
@@ -88,8 +92,9 @@ class Options:
         return parser
 
     def __init__(self, args: List[str]):
+        self.__program_name = args[0]
         parser = self.__get_argument_parser()
-        parsed = parser.parse_args(args)
+        parsed = parser.parse_args(args[1:])
 
         if parsed.hub is None and parsed.specific_device is None:
             parser.error("Must specify at least one --hub or --specific-device")
@@ -103,6 +108,7 @@ class Options:
         self.__specific_devices = parsed.specific_device or []
         self.__wait_on_shutdown = parsed.wait_on_shutdown
 
+        self.print_debug("Program name: {}".format(self.__program_name))
         self.print_unless_quiet("Command line arguments:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
