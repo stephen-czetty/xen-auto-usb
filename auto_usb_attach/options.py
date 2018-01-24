@@ -1,5 +1,6 @@
 from typing import List, Optional
 import argparse
+from datetime import datetime
 
 
 class Options:
@@ -43,21 +44,25 @@ class Options:
     def wait_on_shutdown(self) -> bool:
         return self.__wait_on_shutdown
 
-    def print_debug(self, string: str):
+    @staticmethod
+    def __print_with_timestamp(string: str) -> None:
+        print("[{:%a %b %d %H:%M:%S %Y}] {}".format(datetime.now(), string))
+
+    def print_debug(self, string: str) -> None:
         if self.is_debug:
-            print("Debug: {}".format(string))
+            self.__print_with_timestamp("Debug: {}".format(string))
 
-    def print_very_verbose(self, string: str):
+    def print_very_verbose(self, string: str) -> None:
         if self.is_very_verbose:
-            print(string)
+            self.__print_with_timestamp(string)
 
-    def print_verbose(self, string: str):
+    def print_verbose(self, string: str) -> None:
         if self.is_verbose:
-            print(string)
+            self.__print_with_timestamp(string)
 
-    def print_unless_quiet(self, string: str):
+    def print_unless_quiet(self, string: str) -> None:
         if not self.is_quiet:
-            print(string)
+            self.__print_with_timestamp(string)
 
     @staticmethod
     def __get_argument_parser() -> argparse.ArgumentParser:
