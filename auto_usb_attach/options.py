@@ -1,12 +1,13 @@
 from typing import List, Optional
 import argparse
 from datetime import datetime
+from os import getenv
 
 
 class Options:
     @property
-    def program_name(self) -> str:
-        return self.__program_name
+    def wrapper_name(self) -> str:
+        return self.__wrapper_name
 
     @property
     def is_verbose(self) -> bool:
@@ -92,7 +93,7 @@ class Options:
         return parser
 
     def __init__(self, args: List[str]):
-        self.__program_name = args[0]
+        self.__wrapper_name = getenv("WRAPPER", None)
         parser = self.__get_argument_parser()
         parsed = parser.parse_args(args[1:])
 
@@ -108,7 +109,7 @@ class Options:
         self.__specific_devices = parsed.specific_device or []
         self.__wait_on_shutdown = parsed.wait_on_shutdown
 
-        self.print_debug("Program name: {}".format(self.__program_name))
+        self.print_debug("Program name: {}".format(self.__wrapper_name))
         self.print_unless_quiet("Command line arguments:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
