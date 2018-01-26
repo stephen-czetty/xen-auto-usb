@@ -1,7 +1,7 @@
 from typing import List, Optional
 import argparse
 from datetime import datetime
-from os import getenv
+import os
 
 
 class Options:
@@ -93,7 +93,7 @@ class Options:
         return parser
 
     def __init__(self, args: List[str]):
-        self.__wrapper_name = getenv("WRAPPER", None)
+        self.__wrapper_name = os.environ.get("WRAPPER")
         parser = self.__get_argument_parser()
         parsed = parser.parse_args(args[1:])
 
