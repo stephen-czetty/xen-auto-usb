@@ -39,37 +39,38 @@ class MainThread:
                     del self.__device_map[device.sys_name]
 
     async def __restart_program(self):
+        if self.__options.wrapper_name is None:
+            self.__options.print_unless_quiet("No setuid wrapper found, cannot restart.  Exiting instead.")
+            return
+
         self.__options.print_very_verbose("sleeping for 5 seconds to allow domain to shut down")
         await asyncio.sleep(5.0)
 
         self.__options.print_unless_quiet("Restarting.")
 
-        # Get back root permissions.  (TODO: this will need to go away once there's a setuid wrapper in place.)
-        os.setreuid(-1, 0)
         # Adapted from https://stackoverflow.com/a/33334183
         p = psutil.Process(os.getpid())
         for handler in p.open_files() + p.connections():
             os.close(handler.fd)
 
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
+        os.execl(self.__options.wrapper_name, *sys.argv)
 
-    async def __domain_reboot(self, domain: XenDomain) -> None:
+    async def __domain_reboot(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
         self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
         await self.__restart_program()
+        monitor.shutdown()
 
     async def __domain_shutdown(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
         self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
         if self.__options.wait_on_shutdown:
             await self.__restart_program()
-        else:
-            monitor.shutdown()
+
+        monitor.shutdown()
 
     def __drop_privileges(self):
-        # TODO: This is still pretty insecure.  We'll want a wrapper program that's setuid root.
         ruid = int(os.getuid() or os.environ.get("SUDO_UID") or 0)
         self.__options.print_debug("Original uid: {}".format(ruid))
-        os.setreuid(-1, ruid)
+        os.setreuid(ruid, ruid)
         self.__options.print_debug("New euid: {}".format(os.geteuid()))
 
     @staticmethod
