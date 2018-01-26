@@ -95,7 +95,7 @@ class MainThread:
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.__add_device, xen_domain)
                 monitor.device_removed += partial(self.__remove_device, xen_domain)
-                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain)
+                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
                 qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
 
                 if self.__options.qmp_socket is not None:
