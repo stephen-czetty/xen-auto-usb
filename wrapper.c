@@ -10,15 +10,15 @@ int main(int argc, char *argv[]) {
 
     /* /proc/self/exe is a symlink to this executable */
     readlink("/proc/self/exe", scriptPath, PATH_MAX);
-    char *lastSlashPos = strrchr(scriptPath, "/");
+    char *lastSlashPos = strrchr(scriptPath, '/');
 
     if (lastSlashPos - scriptPath + strlen(scriptName) > PATH_MAX-1)
-        return 0
+        return 0;
 
     strcpy(lastSlashPos+1, scriptName);
     printf("%s", scriptPath);
 
 
-    /*return execv("/path/to/script.py", argv);*/
-    return 0
+    char *emptyEnviron[] = { NULL };
+    return execve(scriptName, argv, emptyEnviron);
 }
