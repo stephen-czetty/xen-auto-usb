@@ -210,7 +210,7 @@ class Qmp:
                                                     "port": str(port),
                                                     "hostbus": str(busnum),
                                                     "hostaddr": str(devnum)}
-                                                   )
+                                                  )
             if "error" in result:
                 raise QmpError(result["error"])
 

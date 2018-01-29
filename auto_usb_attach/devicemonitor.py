@@ -2,24 +2,24 @@ import asyncio
 from typing import Dict, Iterable, Optional
 from glob import glob
 
+import pyudev
+
 from .xenusb import XenUsb
 from .device import Device
 from .options import Options
 from .xendomain import XenDomain
 from .asyncevent import AsyncEvent
 
-import pyudev
-
-sysfs_root = "/sys/bus/usb/devices"
+SYSFS_ROOT = "/sys/bus/usb/devices"
 
 
 class DeviceMonitor:
     __context = None
 
     def __devices_of_interest(self, device: Device) -> Iterable['Device']:
-        for d in device.children:
-            if self.__is_a_device_we_care_about(d, device):
-                yield d
+        for dev in device.children:
+            if self.__is_a_device_we_care_about(dev, device):
+                yield dev
 
     def __is_a_device_we_care_about(self, device: Device, hub_device: Optional['Device'] = None) -> bool:
         devices = [hub_device] if hub_device else self.__root_devices
@@ -54,7 +54,7 @@ class DeviceMonitor:
         return device_map
 
     def __find_devices(self, vendor_id: str, product_id: str) -> Iterable[Device]:
-        for dev_file in glob("{}/*".format(sysfs_root)):
+        for dev_file in glob("{}/*".format(SYSFS_ROOT)):
             if dev_file.split("/")[-1].startswith("usb"):
                 continue
 
@@ -72,7 +72,7 @@ class DeviceMonitor:
         return await self.__get_connected_devices(device)
 
     async def add_hub(self, device_name: str) -> Dict[str, XenUsb]:
-        inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(sysfs_root, device_name))
+        inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(SYSFS_ROOT, device_name))
 
         dev = Device(inner)
         if not dev.is_a_root_device():

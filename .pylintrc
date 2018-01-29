@@ -1,2 +1,5 @@
+[MESSAGES CONTROL]
+disable=C0111
 [DESIGN]
 max-attributes=20
+max-line-length=120
