@@ -4,9 +4,9 @@ import sys
 from functools import partial
 from typing import List, Dict
 import os
-import psutil
-
 import asyncio
+
+import psutil
 from pyxs import PyXSError
 
 from auto_usb_attach.qmp import Qmp

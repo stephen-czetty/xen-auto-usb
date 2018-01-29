@@ -6,6 +6,10 @@ class PriorityDict:
     def data(self):
         return self.__data
 
+    @property
+    def priority(self):
+        return self.__priority
+
     def __init__(self, priority: int, data: Dict[str, str]):
         self.__priority = priority
         self.__data = data
@@ -14,19 +18,20 @@ class PriorityDict:
         return "PriorityDict({!r}, {!r})".format(self.__priority, self.__data)
 
     def __eq__(self, other):
-        return self.__priority == other.__priority
+        return self.priority == other.priority
 
     def __ne__(self, other):
-        return self.__priority != other.__priority
+        return self.priority != other.priority
 
     def __lt__(self, other):
-        return self.__priority < other.__priority
+        return self.priority < other.priority
 
     def __le__(self, other):
-        return self.__priority <= other.__priority
+        return self.priority <= other.priority
 
     def __gt__(self, other):
-        return self.__priority > other.__priority
+        return self.priority > other.priority
 
     def __ge__(self, other):
-        return self.__priority >= other.__priority
+        return self.priority >= other.priority
+
