@@ -4,7 +4,8 @@
 #include <sys/types.h>
 #include <linux/limits.h>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     const char *scriptName = "auto-usb-attach.py";
     const char *environmentVariable = "WRAPPER";
     const char *sudoUidVariable = "SUDO_UID";
@@ -18,7 +19,7 @@ int main(int argc, char *argv[]) {
 
     if (lastSlashPos - scriptPath + strlen(scriptName) > PATH_MAX-1)
     {
-	printf("Path too long, exiting.\n");
+	    printf("Path too long, exiting.\n");
         return 0;
     }
 
