@@ -111,6 +111,9 @@ and react appropriately to them.
 
 ### Still TODO ###
 
+* Expand setup.py to do a full installation
+  * Including a build of the wrapper, setting up
+    setuid bit, symlinks, etc.
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
