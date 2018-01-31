@@ -15,7 +15,7 @@ This script attempts to fix that shortcoming.
 
 **NOTE** I'm currently running this in a screen window:
 
-    screen sudo ./auto-usb-attach.py -d foo -u usb1 -u usb2
+    screen /usr/local/bin/usb-monitor -d foo -u usb1 -u usb2
 
 ### Usage ###
 
@@ -102,11 +102,30 @@ and react appropriately to them.
   that were attached, but subsequently removed before startup.)
 * Correctly recovers from a domain reboot (and shutdown with -w)
 
+### Installation ###
+
+There is a C wrapper intended to be compiled and run setuid.  Until I
+write an installation script (still TODO), there are several steps
+required to get everything up and running:
+
+1. Build the wrapper: `gcc -o usb-monitor wrapper.c`
+2. Create a folder in `/usr/local/` (I used `/usr/local/usb-monitor`)
+3. Copy the contents of this project (including the compiled binary) to
+   this folder: `sudo cp -r * /usr/local/usb-monitor`
+4. Make sure everything is owned by root, and permissions look as you'd
+   like.
+    - You might want to set a specific group so only certain users can
+      use the utility.
+5. Add the setuid bit to the `usb-monitor` binary:
+   `chmod u+s /usr/local/usb-monitor/usb-monitor`
+6. Symlink the binary into `/usr/local/bin`: `ln -s
+   /usr/local/usb-monitor/usb-monitor /usr/local/bin`
+
 ### Contribution guidelines ###
 
 * Try to stick with the style
   * Making things more pythonic is acceptable, since I'm still pretty
-  new to python in general.
+    new to python in general.
 * Submit a pull request, and we'll talk.
 
 ### Still TODO ###
