@@ -116,11 +116,6 @@ and react appropriately to them.
   * Create a way to contact and control the daemon
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
-* Drop privileges after connecting to qmp socket.
-  * We'll need to reset euid to 0 before execl in
-    MainThread.__restart_program
-  * Or, we'll have to write a C wrapper that has the setuid bit, and
-    we can permanently drop privileges.
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
