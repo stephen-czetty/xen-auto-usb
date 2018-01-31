@@ -4,9 +4,9 @@ import sys
 from functools import partial
 from typing import List, Dict
 import os
-import psutil
-
 import asyncio
+
+import psutil
 from pyxs import PyXSError
 
 from auto_usb_attach.qmp import Qmp
@@ -39,6 +39,10 @@ class MainThread:
                     del self.__device_map[device.sys_name]
 
     async def __restart_program(self):
+        if self.__options.wrapper_name is None:
+            self.__options.print_unless_quiet("No setuid wrapper found, cannot restart.  Exiting instead.")
+            return
+
         self.__options.print_very_verbose("sleeping for 5 seconds to allow domain to shut down")
         await asyncio.sleep(5.0)
 
@@ -49,19 +53,25 @@ class MainThread:
         for handler in p.open_files() + p.connections():
             os.close(handler.fd)
 
-        python = sys.executable
-        os.execl(python, python, *sys.argv)
+        os.execl(self.__options.wrapper_name, *sys.argv)
 
-    async def __domain_reboot(self, domain: XenDomain) -> None:
+    async def __domain_reboot(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
         self.__options.print_very_verbose("domain_reboot event fired on domain {}".format(domain.domain_id))
         await self.__restart_program()
+        monitor.shutdown()
 
     async def __domain_shutdown(self, domain: XenDomain, monitor: DeviceMonitor) -> None:
         self.__options.print_very_verbose("domain_shutdown event fired on domain {}".format(domain.domain_id))
         if self.__options.wait_on_shutdown:
             await self.__restart_program()
-        else:
-            monitor.shutdown()
+
+        monitor.shutdown()
+
+    def __drop_privileges(self):
+        ruid = int(os.getuid() or os.environ.get("SUDO_UID") or 0)
+        self.__options.print_debug("Original uid: {}".format(ruid))
+        os.setreuid(ruid, ruid)
+        self.__options.print_debug("New euid: {}".format(os.geteuid()))
 
     @staticmethod
     async def __remove_disconnected_devices(domain: XenDomain, devices: List[XenUsb]):
@@ -79,12 +89,17 @@ class MainThread:
 
                 if self.__options.qmp_socket is None:
                     qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
+                else:
+                    await qmp.is_connected.wait()
 
                 monitor = DeviceMonitor(self.__options, xen_domain)
                 monitor.device_added += partial(self.__add_device, xen_domain)
                 monitor.device_removed += partial(self.__remove_device, xen_domain)
-                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain)
+                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
                 qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
+
+                if self.__options.qmp_socket is not None:
+                    self.__drop_privileges()
 
                 while True:
                     try:
@@ -128,4 +143,4 @@ def main(args: List[str]) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main(sys.argv)

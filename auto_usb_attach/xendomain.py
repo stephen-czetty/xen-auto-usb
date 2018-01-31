@@ -22,17 +22,14 @@ pyxs.client._re_7bit_ascii = re.compile(b"^[\x00\x20-\x7f]*$")
 # /libxl/*/device/vusb/* -- Virtual USB controllers
 # /libxl/*/device/vusb/*/port/* -- Mapped ports (look up in /sys/bus/usb/devices)
 class XenDomain:
-    @staticmethod
-    def __set_xs_value(xs_client: pyxs.Client, xs_path: str, xs_value: str) -> None:
-        xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
+    def __set_xs_value(self, xs_path: str, xs_value: str) -> None:
+        self.__xs_client[bytes(xs_path, "ascii")] = bytes(xs_value, "ascii")
 
-    @staticmethod
-    def __get_xs_list(xs_client: pyxs.Client, xs_path: str) -> Iterable[str]:
-        return (_.decode("ascii") for _ in xs_client.list(bytes(xs_path, "ascii")))
+    def __get_xs_list(self, xs_path: str) -> Iterable[str]:
+        return (_.decode("ascii") for _ in self.__xs_client.list(bytes(xs_path, "ascii")))
 
-    @staticmethod
-    def __get_xs_value(xs_client: pyxs.Client, xs_path: str) -> str:
-        return xs_client[bytes(xs_path, "ascii")].decode("ascii")
+    def __get_xs_value(self, xs_path: str) -> str:
+        return self.__xs_client[bytes(xs_path, "ascii")].decode("ascii")
 
     def __get_qmp_add_usb(self, busnum: int, devnum: int, controller: int, port: int) -> Callable[[], None]:
         return partial(self.__qmp.attach_usb_device, busnum, devnum, controller, port)
@@ -42,48 +39,44 @@ class XenDomain:
 
     async def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str,
                                               qmp_command: Callable[[], None]) -> None:
-        with pyxs.Client() as c:
-            txn_id = c.transaction()
-            try:
-                XenDomain.__set_xs_value(c, xs_path, xs_value)
-                await qmp_command()
-            except (pyxs.PyXSError, QmpError) as e:
-                if txn_id is not None:
-                    c.rollback()
-                self.__options.print_unless_quiet("Caught exception: {}".format(e))
-                raise XenError(e)
+        txn_id = self.__xs_client.transaction()
+        try:
+            self.__set_xs_value(xs_path, xs_value)
+            await qmp_command()
+        except (pyxs.PyXSError, QmpError) as e:
+            if txn_id is not None:
+                self.__xs_client.rollback()
+            self.__options.print_unless_quiet("Caught exception: {}".format(e))
+            raise XenError(e)
 
-            c.commit()
+        self.__xs_client.commit()
 
     def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
-        with pyxs.Client() as c:
-            path = "/libxl/{}/device/vusb".format(self.__domain_id)
-            for controller in XenDomain.__get_xs_list(c, path):
-                c_path = "{}/{}/port".format(path, controller)
-                for port in XenDomain.__get_xs_list(c, c_path):
-                    d_path = "{}/{}".format(c_path, port)
-                    if XenDomain.__get_xs_value(c, d_path) == "":
-                        self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
-                                                     .format(controller, port))
-                        return int(controller), int(port)
+        path = "/libxl/{}/device/vusb".format(self.__domain_id)
+        for controller in self.__get_xs_list(path):
+            c_path = "{}/{}/port".format(path, controller)
+            for port in self.__get_xs_list(c_path):
+                d_path = "{}/{}".format(c_path, port)
+                if self.__get_xs_value(d_path) == "":
+                    self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
+                                                 .format(controller, port))
+                    return int(controller), int(port)
 
-            raise XenError(Exception("No open device slot"))
+        raise XenError(Exception("No open device slot"))
 
     @property
-    def domain_id(self):
+    def domain_id(self) -> Optional[int]:
         return self.__domain_id
 
-    @staticmethod
-    def get_domain_id(name: str) -> int:
-        with pyxs.Client() as c:
-            for domain_id in XenDomain.__get_xs_list(c, "/local/domain"):
-                path = "/local/domain/{}/name".format(domain_id)
-                if XenDomain.__get_xs_value(c, path) == name:
-                    return int(domain_id)
-            raise NameError("Could not find domain {}".format(name))
+    def get_domain_id(self, name: str) -> int:
+        for domain_id in self.__get_xs_list("/local/domain"):
+            path = "/local/domain/{}/name".format(domain_id)
+            if self.__get_xs_value(path) == name:
+                return int(domain_id)
+        raise NameError("Could not find domain {}".format(name))
 
     @staticmethod
-    async def wait_for_domain(opts: Options, qmp: Qmp) -> Optional["XenDomain"]:
+    async def wait_for_domain(opts: Options, qmp: Qmp) -> "XenDomain":
         while True:
             try:
                 return XenDomain(opts, qmp)
@@ -123,32 +116,33 @@ class XenDomain:
         return True
 
     async def find_device_mapping(self, sys_name: str) -> Optional[XenUsb]:
-        with pyxs.Client() as c:
-            path = "/libxl/{}/device/vusb".format(self.__domain_id)
-            for controller in XenDomain.__get_xs_list(c, path):
-                c_path = "{}/{}/port".format(path, controller)
-                for port in XenDomain.__get_xs_list(c, c_path):
-                    d_path = "{}/{}".format(c_path, port)
-                    if XenDomain.__get_xs_value(c, d_path) == sys_name:
-                        usb_host = await self.__qmp.get_usb_host(int(controller), int(port))
-                        if usb_host is not None:
-                            self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
-                                                         .format(usb_host.controller,
-                                                                 usb_host.port,
-                                                                 usb_host.hostbus,
-                                                                 usb_host.hostaddr))
-                        else:
-                            self.__options.print_verbose("Device {} not found".format(sys_name))
-                        return usb_host
+        path = "/libxl/{}/device/vusb".format(self.__domain_id)
+        for controller in self.__get_xs_list(path):
+            c_path = "{}/{}/port".format(path, controller)
+            for port in self.__get_xs_list(c_path):
+                d_path = "{}/{}".format(c_path, port)
+                if self.__get_xs_value(d_path) == sys_name:
+                    usb_host = await self.__qmp.get_usb_host(int(controller), int(port))
+                    if usb_host is not None:
+                        self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
+                                                     .format(usb_host.controller,
+                                                             usb_host.port,
+                                                             usb_host.hostbus,
+                                                             usb_host.hostaddr))
+                    else:
+                        self.__options.print_verbose("Device {} not found".format(sys_name))
+                    return usb_host
         return None
 
     def get_attached_devices(self) -> AsyncIterable:
         return self.__qmp.get_usb_devices()
 
     def __init__(self, opts: Optional[Options], qmp: Qmp):
-        self.__domain_id = XenDomain.get_domain_id(opts.domain) if opts is not None else None
         self.__options = opts
         self.__qmp = qmp
+        with pyxs.Client() as self.__xs_client:
+            self.__domain_id = self.get_domain_id(self.__options.domain) if self.__options is not None else None
+        self.__xs_client = pyxs.Client()
 
     def __repr__(self):
         return "XenDomain({!r}, {!r})".format(self.__options, self.__qmp)
@@ -156,12 +150,16 @@ class XenDomain:
     def __enter__(self):
         if self.__domain_id is None:
             return None
+
+        self.__xs_client.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.__qmp is not None:
             self.__qmp.__exit__(exc_type, exc_val, exc_tb)
             self.__qmp = None
+
+        self.__xs_client.close()
 
 
 class XenError(Exception):

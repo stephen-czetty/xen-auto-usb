@@ -1,8 +1,14 @@
 from typing import List, Optional
 import argparse
+from datetime import datetime
+import os
 
 
 class Options:
+    @property
+    def wrapper_name(self) -> str:
+        return self.__wrapper_name
+
     @property
     def is_verbose(self) -> bool:
         return self.__verbosity > 0
@@ -43,21 +49,25 @@ class Options:
     def wait_on_shutdown(self) -> bool:
         return self.__wait_on_shutdown
 
-    def print_debug(self, string: str):
+    @staticmethod
+    def __print_with_timestamp(string: str) -> None:
+        print("[{:%a %b %d %H:%M:%S %Y}] {}".format(datetime.now(), string))
+
+    def print_debug(self, string: str) -> None:
         if self.is_debug:
-            print("Debug: {}".format(string))
+            self.__print_with_timestamp("Debug: {}".format(string))
 
-    def print_very_verbose(self, string: str):
+    def print_very_verbose(self, string: str) -> None:
         if self.is_very_verbose:
-            print(string)
+            self.__print_with_timestamp(string)
 
-    def print_verbose(self, string: str):
+    def print_verbose(self, string: str) -> None:
         if self.is_verbose:
-            print(string)
+            self.__print_with_timestamp(string)
 
-    def print_unless_quiet(self, string: str):
+    def print_unless_quiet(self, string: str) -> None:
         if not self.is_quiet:
-            print(string)
+            self.__print_with_timestamp(string)
 
     @staticmethod
     def __get_argument_parser() -> argparse.ArgumentParser:
@@ -83,8 +93,9 @@ class Options:
         return parser
 
     def __init__(self, args: List[str]):
+        self.__wrapper_name = os.environ.get("WRAPPER")
         parser = self.__get_argument_parser()
-        parsed = parser.parse_args(args)
+        parsed = parser.parse_args(args[1:])
 
         if parsed.hub is None and parsed.specific_device is None:
             parser.error("Must specify at least one --hub or --specific-device")
@@ -98,6 +109,7 @@ class Options:
         self.__specific_devices = parsed.specific_device or []
         self.__wait_on_shutdown = parsed.wait_on_shutdown
 
+        self.print_debug("Program name: {}".format(self.__wrapper_name))
         self.print_unless_quiet("Command line arguments:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
