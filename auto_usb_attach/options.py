@@ -49,6 +49,10 @@ class Options:
     def wait_on_shutdown(self) -> bool:
         return self.__wait_on_shutdown
 
+    @property
+    def usb_version(self) -> int:
+        return self.__usb_version
+
     @staticmethod
     def __print_with_timestamp(string: str) -> None:
         print("[{:%a %b %d %H:%M:%S %Y}] {}".format(datetime.now(), string))
@@ -88,6 +92,8 @@ class Options:
                             type=str, action="append", dest="specific_device")
         parser.add_argument("-w", "--wait-on-shutdown", help="Wait for a new domain on domain shutdown. (Do not exit)",
                             dest="wait_on_shutdown", action="store_true")
+        parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=3,
+                            choices=range(1, 4))
 
         return parser
 
@@ -107,6 +113,7 @@ class Options:
         self.__args = args
         self.__specific_devices = parsed.specific_device or []
         self.__wait_on_shutdown = parsed.wait_on_shutdown
+        self.__usb_version = parsed.usb_version
 
         self.print_debug("Program name: {}".format(self.__wrapper_name))
         self.print_unless_quiet("Command line arguments:")

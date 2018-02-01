@@ -138,6 +138,7 @@ required to get everything up and running:
   * Create a way to contact and control the daemon
 * Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
+* Add unit tests!
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
