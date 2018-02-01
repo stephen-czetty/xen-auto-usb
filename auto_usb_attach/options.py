@@ -70,7 +70,7 @@ class Options:
             self.__print_with_timestamp(string)
 
     def __get_argument_parser(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(prog=self.__wrapper_name)
+        parser = argparse.ArgumentParser(prog=os.path.basename(self.__wrapper_name))
 
         verbosity_group = parser.add_mutually_exclusive_group()
         verbosity_group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
