@@ -19,7 +19,7 @@ This script attempts to fix that shortcoming.
 
 ### Usage ###
 
-    usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN [-u HUB] [-s QMP_SOCKET]
+    usage: usb-monitor [-h] [-v | -q] -d DOMAIN [-u HUB] [-s QMP_SOCKET]
                               [-n] [-x SPECIFIC_DEVICE]
 
     optional arguments:

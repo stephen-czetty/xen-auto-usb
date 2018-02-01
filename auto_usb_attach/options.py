@@ -69,9 +69,8 @@ class Options:
         if not self.is_quiet:
             self.__print_with_timestamp(string)
 
-    @staticmethod
-    def __get_argument_parser() -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser()
+    def __get_argument_parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(prog=self.__wrapper_name)
 
         verbosity_group = parser.add_mutually_exclusive_group()
         verbosity_group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
@@ -93,7 +92,7 @@ class Options:
         return parser
 
     def __init__(self, args: List[str]):
-        self.__wrapper_name = os.environ.get("WRAPPER")
+        self.__wrapper_name = os.environ.get("WRAPPER") or args[0]
         parser = self.__get_argument_parser()
         parsed = parser.parse_args(args[1:])
 
