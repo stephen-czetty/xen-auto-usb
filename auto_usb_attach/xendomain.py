@@ -1,6 +1,6 @@
 import asyncio
 from functools import partial
-from typing import Tuple, Optional, Callable, Iterable
+from typing import Tuple, Optional, Callable, Iterable, List
 from collections import AsyncIterable
 import pyxs
 import re
@@ -37,11 +37,12 @@ class XenDomain:
     def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], None]:
         return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
-    async def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str,
+    async def __set_xenstore_and_send_command(self, xs_list: List[Tuple[str, str]],
                                               qmp_command: Callable[[], None]) -> None:
         txn_id = self.__xs_client.transaction()
         try:
-            self.__set_xs_value(xs_path, xs_value)
+            for xs_path, xs_value in xs_list:
+                self.__set_xs_value(xs_path, xs_value)
             await qmp_command()
         except (pyxs.PyXSError, QmpError) as e:
             if txn_id is not None:
@@ -97,7 +98,7 @@ class XenDomain:
         busnum = dev.busnum
         devnum = dev.devnum
 
-        await self.__set_xenstore_and_send_command(path, dev.sys_name,
+        await self.__set_xenstore_and_send_command([(path, dev.sys_name)],
                                                    self.__get_qmp_add_usb(busnum, devnum, controller, port))
 
         return XenUsb(controller, port, busnum, devnum)
@@ -110,8 +111,8 @@ class XenDomain:
             return False
 
         path = "/libxl/{}/device/vusb/{}/port/{}".format(self.__domain_id, device.controller, device.port)
-        await self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device.hostbus,
-                                                                                    device.hostaddr))
+        await self.__set_xenstore_and_send_command([(path, "")], self.__get_qmp_del_usb(device.hostbus,
+                                                                                        device.hostaddr))
 
         return True
 
