@@ -40,7 +40,7 @@ class XenDomain:
         return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
     def __get_qmp_add_controller(self, controller: int) -> Callable[[], None]:
-        return partial(self.__qmp.create_usb_controller(controller))
+        return partial(self.__qmp.create_usb_controller, controller)
 
     async def __set_xenstore_and_send_command(self, xs_list: List[Tuple[str, str]],
                                               qmp_command: Callable[[], None]) -> None:
