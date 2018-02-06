@@ -5,6 +5,8 @@ from collections import AsyncIterable
 import pyxs
 import re
 
+from pyxs import PyXSError
+
 from .device import Device
 from .options import Options
 from .qmp import Qmp, QmpError
@@ -74,15 +76,18 @@ class XenDomain:
     async def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
         path = "/libxl/{}/device/vusb".format(self.__domain_id)
         last_controller = -1
-        for controller in self.__get_xs_list(path):
-            last_controller = int(controller)
-            c_path = "{}/{}/port".format(path, controller)
-            for port in self.__get_xs_list(c_path):
-                d_path = "{}/{}".format(c_path, port)
-                if self.__get_xs_value(d_path) == "":
-                    self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
-                                                 .format(controller, port))
-                    return int(controller), int(port)
+        try:
+            for controller in self.__get_xs_list(path):
+                last_controller = int(controller)
+                c_path = "{}/{}/port".format(path, controller)
+                for port in self.__get_xs_list(c_path):
+                    d_path = "{}/{}".format(c_path, port)
+                    if self.__get_xs_value(d_path) == "":
+                        self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
+                                                     .format(controller, port))
+                        return int(controller), int(port)
+        except PyXSError:
+            pass
 
         # Create a new controller
         new_controller = last_controller + 1
