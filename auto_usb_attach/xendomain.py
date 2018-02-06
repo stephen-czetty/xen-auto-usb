@@ -37,6 +37,9 @@ class XenDomain:
     def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], None]:
         return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
+    def __get_qmp_add_controller(self, controller: int) -> Callable[[], None]:
+        return partial(self.__qmp.create_usb_controller(controller))
+
     async def __set_xenstore_and_send_command(self, xs_list: List[Tuple[str, str]],
                                               qmp_command: Callable[[], None]) -> None:
         txn_id = self.__xs_client.transaction()
@@ -52,9 +55,27 @@ class XenDomain:
 
         self.__xs_client.commit()
 
-    def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
+    async def __create_controller(self, controller: int) -> None:
         path = "/libxl/{}/device/vusb".format(self.__domain_id)
+        num_ports = [2, 6, 15][self.__options.usb_version-1]
+        xenstore_entries = [
+            (path, ""),
+            ("{}/{}".format(path, controller), ""),
+            ("{}/{}/type".format(path, controller), "devicemodel"),
+            ("{}/{}/usb-ver".format(path, controller), str(self.__options.usb_version)),
+            ("{}/{}/num-ports".format(path, controller), str(num_ports)),
+            ("{}/{}/port".format(path, controller), "")
+        ]
+        for port in range(1, num_ports+1):
+            xenstore_entries.append(("{}/{}/port/{}".format(path, controller, port), ""))
+
+        await self.__set_xenstore_and_send_command(xenstore_entries, self.__get_qmp_add_controller(controller))
+
+    async def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
+        path = "/libxl/{}/device/vusb".format(self.__domain_id)
+        last_controller = -1
         for controller in self.__get_xs_list(path):
+            last_controller = int(controller)
             c_path = "{}/{}/port".format(path, controller)
             for port in self.__get_xs_list(c_path):
                 d_path = "{}/{}".format(c_path, port)
@@ -63,7 +84,13 @@ class XenDomain:
                                                  .format(controller, port))
                     return int(controller), int(port)
 
-        raise XenError(Exception("No open device slot"))
+        # Create a new controller
+        new_controller = last_controller + 1
+        self.__options.print_verbose("No available slot found, creating new controller id {}"
+                                     .format(new_controller))
+        await self.__create_controller(new_controller)
+        self.__options.print_verbose("Choosing Controller {}, Slot 1".format(new_controller))
+        return new_controller, 1
 
     @property
     def domain_id(self) -> Optional[int]:
@@ -91,7 +118,7 @@ class XenDomain:
 
     async def attach_device_to_xen(self, dev: Device) -> XenUsb:
         # Find an open controller and slot
-        controller, port = self.__find_next_open_controller_and_port()
+        controller, port = await self.__find_next_open_controller_and_port()
 
         # Add the entry to xenstore
         path = "/libxl/{}/device/vusb/{}/port/{}".format(self.__domain_id, controller, port)
