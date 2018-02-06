@@ -37,6 +37,8 @@ This script attempts to fix that shortcoming.
                             id>)
       -w, --wait-on-shutdown
                             Wait for a new domain on domain shutdown. (Do not exit)
+      --usb-version {1,2,3}
+                            USB Controller version (defaults to 3)
 
     required arguments:
       -d DOMAIN, --domain DOMAIN
@@ -53,22 +55,8 @@ This script attempts to fix that shortcoming.
 
 #### USB Controller ####
 
-Currently, this script does not automatically create usb controllers
-on the VM, so at least one must be created either in the vm
-configuration:
-
-     usbctrl = [ 'version=3,ports=15' ]
-
-or via xl:
-
-    xl usbctrl-attach <domain> version=3 ports=15
-
-It is recommended that you don't pre-configure usb devices that are
-attached to the hubs to be monitored.  They will be automatically
-configured at startup.  If there are devices attached at startup,
-this script will attempt to gather the correct info it needs to
-handle a detach event, but there may be circumstances where that
-will fail.
+There is no need to pre-configure a usb controller in the domain
+configuration, but if it is there, this script will use it.
 
 #### QMP Socket (Optional) ####
 
@@ -136,7 +124,6 @@ required to get everything up and running:
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
 * Add unit tests!
 * DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
