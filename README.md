@@ -58,7 +58,7 @@ This script attempts to fix that shortcoming.
 There is no need to pre-configure a usb controller in the domain
 configuration, but if it is there, this script will use it.
 
-#### QMP Socket (Optional) ####
+#### QMP Socket (Recommended) ####
 
 If you wish the script to keep an open connection to the devicemodel,
 you will need to set up an additional UNIX socket at VM startup.
@@ -75,10 +75,8 @@ configuration:
 You can then tell the script about this socket with the `--qmp-socket`
 switch.
 
-At the moment, this isn't very useful, except maybe for a small
-performance gain.  However, in the future, using this will allow
-for better control over the monitor, as we can get domain events
-and react appropriately to them.
+This is now recommended, as the script will watch for reboot and
+shutdown events and respond appropriately.
 
 ### Features ###
 
