@@ -5,8 +5,6 @@ from collections import AsyncIterable
 import pyxs
 import re
 
-from pyxs import PyXSError
-
 from .device import Device
 from .options import Options
 from .qmp import Qmp, QmpError
