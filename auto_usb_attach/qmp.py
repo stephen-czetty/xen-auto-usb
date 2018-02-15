@@ -149,8 +149,9 @@ class QmpSocket:
 class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
         self.__qmp_socket = self.__qmp_socket or \
-            QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None, self.domain_reboot,
-                      self.domain_shutdown, self.__connected_event)
+                            QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None,
+                                      self.domain_reboot,
+                                      self.domain_shutdown, self.__connected_event)
         return self.__qmp_socket
 
     @staticmethod
@@ -210,13 +211,26 @@ class Qmp:
                                                     "port": str(port),
                                                     "hostbus": str(busnum),
                                                     "hostaddr": str(devnum)}
-                                                  )
+                                                   )
             if "error" in result:
                 raise QmpError(result["error"])
 
     async def detach_usb_device(self, busnum: int, devnum: int) -> None:
         with self.__get_qmp_socket() as sock:
             result = await self.__send_qmp_command(sock, "device_del", {"id": "xenusb-{}-{}".format(busnum, devnum)})
+
+            if "error" in result:
+                raise QmpError(result["error"])
+
+    async def create_usb_controller(self, controller_id: int) -> None:
+        qmp_arguments = {"id": "xenusb-{}".format(controller_id),
+                         "driver": ["piix3-usb-uhci", "usb-ehci", "nec-usb-xhci"][self.__options.usb_version - 1]}
+
+        if self.__options.usb_version == 3:
+            qmp_arguments.update({"p2": "15", "p3": "15"})
+
+        with self.__get_qmp_socket() as sock:
+            result = await self.__send_qmp_command(sock, "device_add", qmp_arguments)
 
             if "error" in result:
                 raise QmpError(result["error"])
@@ -324,6 +338,3 @@ class QmpError(Exception):
 # For adding a chardev at runtime:
 # {"execute": "chardev-add", "arguments": {"id": "test", "backend": {"type": "socket", "data": { "addr": {"data": {"path": "/var/run/xen/qmp-test"}, "type": "unix"}}, "server": true, "wait": false}}}
 # I don't (yet) see a way to tell qmp to put this chardev into "mode=control" as done on the commandline.
-
-
-

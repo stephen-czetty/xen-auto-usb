@@ -19,7 +19,7 @@ This script attempts to fix that shortcoming.
 
 ### Usage ###
 
-    usage: auto-usb-attach.py [-h] [-v | -q] -d DOMAIN [-u HUB] [-s QMP_SOCKET]
+    usage: usb-monitor [-h] [-v | -q] -d DOMAIN [-u HUB] [-s QMP_SOCKET]
                               [-n] [-x SPECIFIC_DEVICE]
 
     optional arguments:
@@ -37,6 +37,8 @@ This script attempts to fix that shortcoming.
                             id>)
       -w, --wait-on-shutdown
                             Wait for a new domain on domain shutdown. (Do not exit)
+      --usb-version {1,2,3}
+                            USB Controller version (defaults to 3)
 
     required arguments:
       -d DOMAIN, --domain DOMAIN
@@ -53,24 +55,10 @@ This script attempts to fix that shortcoming.
 
 #### USB Controller ####
 
-Currently, this script does not automatically create usb controllers
-on the VM, so at least one must be created either in the vm
-configuration:
+There is no need to pre-configure a usb controller in the domain
+configuration, but if it is there, this script will use it.
 
-     usbctrl = [ 'version=3,ports=15' ]
-
-or via xl:
-
-    xl usbctrl-attach <domain> version=3 ports=15
-
-It is recommended that you don't pre-configure usb devices that are
-attached to the hubs to be monitored.  They will be automatically
-configured at startup.  If there are devices attached at startup,
-this script will attempt to gather the correct info it needs to
-handle a detach event, but there may be circumstances where that
-will fail.
-
-#### QMP Socket (Optional) ####
+#### QMP Socket (Recommended) ####
 
 If you wish the script to keep an open connection to the devicemodel,
 you will need to set up an additional UNIX socket at VM startup.
@@ -87,10 +75,8 @@ configuration:
 You can then tell the script about this socket with the `--qmp-socket`
 switch.
 
-At the moment, this isn't very useful, except maybe for a small
-performance gain.  However, in the future, using this will allow
-for better control over the monitor, as we can get domain events
-and react appropriately to them.
+This is now recommended, as the script will watch for reboot and
+shutdown events and respond appropriately.
 
 ### Features ###
 
@@ -136,8 +122,10 @@ required to get everything up and running:
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
-* Create usb controller if an available one doesn't exist
 * Qmp.__get_usb_devices could probably cache its data
+* Add unit tests!
+* DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
+  should probably move to MainThread
 * (Bonus) Figure out how to create a qmp control socket at runtime
 * (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently

@@ -1,6 +1,6 @@
 import asyncio
 from functools import partial
-from typing import Tuple, Optional, Callable, Iterable
+from typing import Tuple, Optional, Callable, Iterable, List
 from collections import AsyncIterable
 import pyxs
 import re
@@ -37,11 +37,15 @@ class XenDomain:
     def __get_qmp_del_usb(self, busnum: int, devnum: int) -> Callable[[], None]:
         return partial(self.__qmp.detach_usb_device, busnum, devnum)
 
-    async def __set_xenstore_and_send_command(self, xs_path: str, xs_value: str,
+    def __get_qmp_add_controller(self, controller: int) -> Callable[[], None]:
+        return partial(self.__qmp.create_usb_controller, controller)
+
+    async def __set_xenstore_and_send_command(self, xs_list: List[Tuple[str, str]],
                                               qmp_command: Callable[[], None]) -> None:
         txn_id = self.__xs_client.transaction()
         try:
-            self.__set_xs_value(xs_path, xs_value)
+            for xs_path, xs_value in xs_list:
+                self.__set_xs_value(xs_path, xs_value)
             await qmp_command()
         except (pyxs.PyXSError, QmpError) as e:
             if txn_id is not None:
@@ -51,18 +55,49 @@ class XenDomain:
 
         self.__xs_client.commit()
 
-    def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
+    async def __create_controller(self, controller: int) -> None:
         path = "/libxl/{}/device/vusb".format(self.__domain_id)
-        for controller in self.__get_xs_list(path):
-            c_path = "{}/{}/port".format(path, controller)
-            for port in self.__get_xs_list(c_path):
-                d_path = "{}/{}".format(c_path, port)
-                if self.__get_xs_value(d_path) == "":
-                    self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
-                                                 .format(controller, port))
-                    return int(controller), int(port)
+        num_ports = [2, 6, 15][self.__options.usb_version-1]
+        xenstore_entries = [
+            (path, ""),
+            ("{}/{}".format(path, controller), ""),
+            ("{}/{}/type".format(path, controller), "devicemodel"),
+            ("{}/{}/usb-ver".format(path, controller), str(self.__options.usb_version)),
+            ("{}/{}/num-ports".format(path, controller), str(num_ports)),
+            ("{}/{}/port".format(path, controller), "")
+        ]
+        for port in range(1, num_ports+1):
+            xenstore_entries.append(("{}/{}/port/{}".format(path, controller, port), ""))
 
-        raise XenError(Exception("No open device slot"))
+        await self.__set_xenstore_and_send_command(xenstore_entries, self.__get_qmp_add_controller(controller))
+
+    def __check_for_vusb(self) -> bool:
+        path = "/libxl/{}/device".format(self.__domain_id)
+        devices = self.__get_xs_list(path)
+        return "vusb" in devices
+
+    async def __find_next_open_controller_and_port(self) -> Tuple[int, int]:
+        path = "/libxl/{}/device/vusb".format(self.__domain_id)
+        last_controller = -1
+
+        if self.__check_for_vusb():
+            for controller in self.__get_xs_list(path):
+                last_controller = int(controller)
+                c_path = "{}/{}/port".format(path, controller)
+                for port in self.__get_xs_list(c_path):
+                    d_path = "{}/{}".format(c_path, port)
+                    if self.__get_xs_value(d_path) == "":
+                        self.__options.print_verbose("Choosing Controller {0}, Slot {1}"
+                                                     .format(controller, port))
+                        return int(controller), int(port)
+
+        # Create a new controller
+        new_controller = last_controller + 1
+        self.__options.print_verbose("No available slot found, creating new controller id {}"
+                                     .format(new_controller))
+        await self.__create_controller(new_controller)
+        self.__options.print_verbose("Choosing Controller {}, Slot 1".format(new_controller))
+        return new_controller, 1
 
     @property
     def domain_id(self) -> Optional[int]:
@@ -90,14 +125,14 @@ class XenDomain:
 
     async def attach_device_to_xen(self, dev: Device) -> XenUsb:
         # Find an open controller and slot
-        controller, port = self.__find_next_open_controller_and_port()
+        controller, port = await self.__find_next_open_controller_and_port()
 
         # Add the entry to xenstore
         path = "/libxl/{}/device/vusb/{}/port/{}".format(self.__domain_id, controller, port)
         busnum = dev.busnum
         devnum = dev.devnum
 
-        await self.__set_xenstore_and_send_command(path, dev.sys_name,
+        await self.__set_xenstore_and_send_command([(path, dev.sys_name)],
                                                    self.__get_qmp_add_usb(busnum, devnum, controller, port))
 
         return XenUsb(controller, port, busnum, devnum)
@@ -110,28 +145,29 @@ class XenDomain:
             return False
 
         path = "/libxl/{}/device/vusb/{}/port/{}".format(self.__domain_id, device.controller, device.port)
-        await self.__set_xenstore_and_send_command(path, "", self.__get_qmp_del_usb(device.hostbus,
-                                                                                    device.hostaddr))
+        await self.__set_xenstore_and_send_command([(path, "")], self.__get_qmp_del_usb(device.hostbus,
+                                                                                        device.hostaddr))
 
         return True
 
     async def find_device_mapping(self, sys_name: str) -> Optional[XenUsb]:
-        path = "/libxl/{}/device/vusb".format(self.__domain_id)
-        for controller in self.__get_xs_list(path):
-            c_path = "{}/{}/port".format(path, controller)
-            for port in self.__get_xs_list(c_path):
-                d_path = "{}/{}".format(c_path, port)
-                if self.__get_xs_value(d_path) == sys_name:
-                    usb_host = await self.__qmp.get_usb_host(int(controller), int(port))
-                    if usb_host is not None:
-                        self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
-                                                     .format(usb_host.controller,
-                                                             usb_host.port,
-                                                             usb_host.hostbus,
-                                                             usb_host.hostaddr))
-                    else:
-                        self.__options.print_verbose("Device {} not found".format(sys_name))
-                    return usb_host
+        if self.__check_for_vusb():
+            path = "/libxl/{}/device/vusb".format(self.__domain_id)
+            for controller in self.__get_xs_list(path):
+                c_path = "{}/{}/port".format(path, controller)
+                for port in self.__get_xs_list(c_path):
+                    d_path = "{}/{}".format(c_path, port)
+                    if self.__get_xs_value(d_path) == sys_name:
+                        usb_host = await self.__qmp.get_usb_host(int(controller), int(port))
+                        if usb_host is not None:
+                            self.__options.print_verbose("Controller {}, Port {}, HostBus {}, HostAddress {}"
+                                                         .format(usb_host.controller,
+                                                                 usb_host.port,
+                                                                 usb_host.hostbus,
+                                                                 usb_host.hostaddr))
+                        else:
+                            self.__options.print_verbose("Device {} not found".format(sys_name))
+                        return usb_host
         return None
 
     def get_attached_devices(self) -> AsyncIterable:

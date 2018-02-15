@@ -49,6 +49,10 @@ class Options:
     def wait_on_shutdown(self) -> bool:
         return self.__wait_on_shutdown
 
+    @property
+    def usb_version(self) -> int:
+        return self.__usb_version
+
     @staticmethod
     def __print_with_timestamp(string: str) -> None:
         print("[{:%a %b %d %H:%M:%S %Y}] {}".format(datetime.now(), string))
@@ -69,9 +73,8 @@ class Options:
         if not self.is_quiet:
             self.__print_with_timestamp(string)
 
-    @staticmethod
-    def __get_argument_parser() -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser()
+    def __get_argument_parser(self) -> argparse.ArgumentParser:
+        parser = argparse.ArgumentParser(prog=os.path.basename(self.__wrapper_name))
 
         verbosity_group = parser.add_mutually_exclusive_group()
         verbosity_group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
@@ -89,11 +92,13 @@ class Options:
                             type=str, action="append", dest="specific_device")
         parser.add_argument("-w", "--wait-on-shutdown", help="Wait for a new domain on domain shutdown. (Do not exit)",
                             dest="wait_on_shutdown", action="store_true")
+        parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=3,
+                            choices=range(1, 4))
 
         return parser
 
     def __init__(self, args: List[str]):
-        self.__wrapper_name = os.environ.get("WRAPPER")
+        self.__wrapper_name = os.environ.get("WRAPPER") or args[0]
         parser = self.__get_argument_parser()
         parsed = parser.parse_args(args[1:])
 
@@ -108,6 +113,7 @@ class Options:
         self.__args = args
         self.__specific_devices = parsed.specific_device or []
         self.__wait_on_shutdown = parsed.wait_on_shutdown
+        self.__usb_version = parsed.usb_version
 
         self.print_debug("Program name: {}".format(self.__wrapper_name))
         self.print_unless_quiet("Command line arguments:")
