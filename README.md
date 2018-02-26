@@ -122,6 +122,7 @@ required to get everything up and running:
 * Load configuration from a file
 * Run as a daemon
   * Create a way to contact and control the daemon
+* Watch for a CD insert
 * Qmp.__get_usb_devices could probably cache its data
 * Add unit tests!
 * DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
