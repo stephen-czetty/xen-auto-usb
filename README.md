@@ -121,14 +121,13 @@ required to get everything up and running:
     setuid bit, symlinks, etc.
 * Load configuration from a file
 * Run as a daemon
-  * Create a way to contact and control the daemon
+  * Create a way to contact and control the daemon (maybe even from the guest?)
 * Watch for a CD insert
 * Qmp.__get_usb_devices could probably cache its data
 * Add unit tests!
 * DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
   should probably move to MainThread
 * (Bonus) Figure out how to create a qmp control socket at runtime
-* (Bonus) Figure out how to not run as root
 * (Bonus) Support multiple VMs concurrently
 
 ### Copyright and License ###
