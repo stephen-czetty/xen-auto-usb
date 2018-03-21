@@ -114,21 +114,36 @@ required to get everything up and running:
     new to python in general.
 * Submit a pull request, and we'll talk.
 
-### Still TODO ###
+### Still TODO for 1.0 ###
 
 * Expand setup.py to do a full installation
   * Including a build of the wrapper, setting up
     setuid bit, symlinks, etc.
-* Load configuration from a file
 * Run as a daemon
-  * Create a way to contact and control the daemon (maybe even from the guest?)
-* Watch for a CD insert
-* Qmp.__get_usb_devices could probably cache its data
+* Output to a log file
 * Add unit tests!
 * DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
   should probably move to MainThread
-* (Bonus) Figure out how to create a qmp control socket at runtime
-* (Bonus) Support multiple VMs concurrently
+
+### Future Roadmap ###
+
+#### 1.1 ####
+
+* Qmp.__get_usb_devices could probably cache its data
+* Watch for a CD insert
+
+#### 1.5 ####
+
+* Create a way to contact and control the daemon (maybe even from the guest?)
+* This might look like a JSON-based web API, with authentication.
+
+#### 2.0 ####
+
+* Support multiple VMs concurrently
+
+#### Nice to have, but maybe not possible? ####
+
+* Figure out how to create a qmp control socket at runtime
 
 ### Copyright and License ###
 

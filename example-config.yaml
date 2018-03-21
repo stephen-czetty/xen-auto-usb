@@ -1,0 +1,15 @@
+%YAML 1.1
+---
+domain: Windows                           # Domain to watch
+qmp-socket: /run/xen/qmp-usb-Windows      # QMP socket (see README.md)
+usb-version: 3                            # USB version (defaults to 3 if not specified)
+wait-on-shutdown: false                   # Wait for a new domain on domain shutdown (defaults to false)
+wait-for-domain: true                     # Wait for the domain to start (defaults to true)
+hubs:                                     # List of hubs to monitor
+  - usb3
+  - usb4
+devices:                                  # Specific devices to watch for (can be connected to any hub)
+  - 28de:1142
+  - 1b1c:1b33
+  - 1b1c:1b2e
+...
