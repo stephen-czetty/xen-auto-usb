@@ -134,7 +134,7 @@ class Options:
             parser.error("Must specify at least one --hub or --specific-device")
 
         self.print_debug("Program name: {}".format(self.__wrapper_name))
-        self.print_unless_quiet("Command line arguments:")
+        self.print_unless_quiet("Settings:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
                                                        "Quiet" if self.is_quiet else "Normal"))
@@ -143,6 +143,7 @@ class Options:
         self.print_unless_quiet("No Wait: {}".format(self.no_wait))
         self.print_unless_quiet("Specific Devices: {}".format(self.specific_devices))
         self.print_unless_quiet("Wait on Shutdown: {}".format(self.wait_on_shutdown))
+        self.print_unless_quiet("QMP socket: {}".format(self.qmp_socket))
 
     def __repr__(self):
         return "Options({!r})".format(self.__args)
