@@ -2,6 +2,7 @@ from typing import List, Optional
 import argparse
 from datetime import datetime
 import os
+import yaml
 
 
 class Options:
@@ -79,9 +80,8 @@ class Options:
         verbosity_group = parser.add_mutually_exclusive_group()
         verbosity_group.add_argument("-v", "--verbose", help="increase verbosity", action="count", default=0)
         verbosity_group.add_argument("-q", "--quiet", help="be very quiet", action="store_true")
-        required_group = parser.add_argument_group("required arguments")
-        required_group.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store",
-                                    required=True)
+        parser.add_argument("-c", "--config", help="config file", type=argparse.FileType(), default=None)
+        parser.add_argument("-d", "--domain", help="domain name to monitor", type=str, action="store")
         parser.add_argument("-u", "--hub", help="usb hub to monitor (for example, \"usb3\", \"1-1\")\n"
                                                 "can be specified multiple times", type=str, action="append")
         parser.add_argument("-s", "--qmp-socket", help="UNIX domain socket to connect to", type=str, dest="qmp_socket",
@@ -92,28 +92,44 @@ class Options:
                             type=str, action="append", dest="specific_device")
         parser.add_argument("-w", "--wait-on-shutdown", help="Wait for a new domain on domain shutdown. (Do not exit)",
                             dest="wait_on_shutdown", action="store_true")
-        parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=3,
+        parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=None,
                             choices=range(1, 4))
 
         return parser
+
+    def __load_from_config_file(self, config_file) -> None:
+        config = yaml.safe_load(config_file)
+        self.__domain = config['domain'] if 'domain' in config else None
+        self.__qmp_socket = config['qmp-socket'] if 'qmp-socket' in config else None
+        self.__no_wait = not config['wait-for-domain'] if 'wait-for-domain' in config else False
+        self.__wait_on_shutdown = config['wait-on-shutdown'] if 'wait-on-shutdown' in config else False
+        self.__usb_version = config['usb-version'] if 'usb-version' in config else 3
+        self.__hubs = config['hubs'] if 'hubs' in config else []
+        self.__specific_devices = config['devices'] if 'devices' in config else []
 
     def __init__(self, args: List[str]):
         self.__wrapper_name = os.environ.get("WRAPPER") or args[0]
         parser = self.__get_argument_parser()
         parsed = parser.parse_args(args[1:])
+        self.__verbosity = -1 if parsed.quiet else parsed.verbose
+
+        if parsed.config is not None:
+            self.__load_from_config_file(parsed.config)
 
         if parsed.hub is None and parsed.specific_device is None:
             parser.error("Must specify at least one --hub or --specific-device")
 
-        self.__verbosity = -1 if parsed.quiet else parsed.verbose
-        self.__domain = parsed.domain
-        self.__hubs = parsed.hub or []
-        self.__qmp_socket = parsed.qmp_socket
-        self.__no_wait = parsed.no_wait
+        self.__domain = parsed.domain or self.__domain
+        self.__hubs.extend(parsed.hub)
+        self.__qmp_socket = parsed.qmp_socket or self.__qmp_socket
+        self.__no_wait = parsed.no_wait if parsed.no_wait else self.__no_wait
         self.__args = args
-        self.__specific_devices = parsed.specific_device or []
-        self.__wait_on_shutdown = parsed.wait_on_shutdown
-        self.__usb_version = parsed.usb_version
+        self.__specific_devices.extend(parsed.specific_device)
+        self.__wait_on_shutdown = parsed.wait_on_shutdown if parsed.wait_on_shutdown else self.__wait_on_shutdown
+        self.__usb_version = parsed.usb_version or self.__usb_version
+
+        if self.__domain is None:
+            parser.error("Must specify the domain to watch")
 
         self.print_debug("Program name: {}".format(self.__wrapper_name))
         self.print_unless_quiet("Command line arguments:")
