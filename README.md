@@ -129,7 +129,6 @@ required to get everything up and running:
 
 #### 1.1 ####
 
-* Load configuration from a file
 * Qmp.__get_usb_devices could probably cache its data
 * Watch for a CD insert
 
