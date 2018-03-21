@@ -117,11 +117,13 @@ class Options:
             self.__load_from_config_file(parsed.config)
 
         self.__domain = parsed.domain or self.__domain
-        self.__hubs.extend(parsed.hub)
+        if parsed.hub is not None:
+            self.__hubs.extend(parsed.hub)
         self.__qmp_socket = parsed.qmp_socket or self.__qmp_socket
         self.__no_wait = parsed.no_wait if parsed.no_wait else self.__no_wait
         self.__args = args
-        self.__specific_devices.extend(parsed.specific_device)
+        if parsed.specific_device is not None:
+            self.__specific_devices.extend(parsed.specific_device)
         self.__wait_on_shutdown = parsed.wait_on_shutdown if parsed.wait_on_shutdown else self.__wait_on_shutdown
         self.__usb_version = parsed.usb_version or self.__usb_version
 
