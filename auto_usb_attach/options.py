@@ -116,9 +116,6 @@ class Options:
         if parsed.config is not None:
             self.__load_from_config_file(parsed.config)
 
-        if parsed.hub is None and parsed.specific_device is None:
-            parser.error("Must specify at least one --hub or --specific-device")
-
         self.__domain = parsed.domain or self.__domain
         self.__hubs.extend(parsed.hub)
         self.__qmp_socket = parsed.qmp_socket or self.__qmp_socket
@@ -130,6 +127,9 @@ class Options:
 
         if self.__domain is None:
             parser.error("Must specify the domain to watch")
+
+        if len(self.__hubs) == 0 and len(self.__specific_devices) == 0:
+            parser.error("Must specify at least one --hub or --specific-device")
 
         self.print_debug("Program name: {}".format(self.__wrapper_name))
         self.print_unless_quiet("Command line arguments:")
