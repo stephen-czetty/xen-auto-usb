@@ -59,8 +59,7 @@ class Options:
     def log_file(self) -> str:
         return self.__log_file
 
-    @staticmethod
-    def __print_with_timestamp(string: str) -> None:
+    def __print_with_timestamp(self, string: str) -> None:
         self.__log_output.write(f"[{datetime.now():%a %b %d %H:%M:%S %Y}] {string}\n")
 
     def print_debug(self, string: str) -> None:
