@@ -112,7 +112,7 @@ class Options:
         self.__usb_version = config['usb-version'] if 'usb-version' in config else 3
         self.__hubs = config['hubs'] if 'hubs' in config else []
         self.__specific_devices = config['devices'] if 'devices' in config else []
-        self.__log_file = config['log-file'] if 'log-file' in config else Nones
+        self.__log_file = config['log-file'] if 'log-file' in config else None
 
     def __init__(self, args: List[str]):
         self.__wrapper_name = os.environ.get("WRAPPER") or args[0]
