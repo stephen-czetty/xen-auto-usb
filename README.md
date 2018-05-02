@@ -120,7 +120,6 @@ required to get everything up and running:
   * Including a build of the wrapper, setting up
     setuid bit, symlinks, etc.
 * Run as a daemon
-* Output to a log file
 * Add unit tests!
 * DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
   should probably move to MainThread
@@ -131,6 +130,7 @@ required to get everything up and running:
 
 * Qmp.__get_usb_devices could probably cache its data
 * Watch for a CD insert
+* Rotate log file
 
 #### 1.5 ####
 

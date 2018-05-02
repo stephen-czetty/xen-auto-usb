@@ -3,6 +3,7 @@ import argparse
 from datetime import datetime
 import os
 import yaml
+import sys
 
 
 class Options:
@@ -54,13 +55,17 @@ class Options:
     def usb_version(self) -> int:
         return self.__usb_version
 
+    @property
+    def log_file(self) -> str:
+        return self.__log_file
+
     @staticmethod
     def __print_with_timestamp(string: str) -> None:
-        print("[{:%a %b %d %H:%M:%S %Y}] {}".format(datetime.now(), string))
+        self.__log_output.write(f"[{datetime.now():%a %b %d %H:%M:%S %Y}] {string}\n")
 
     def print_debug(self, string: str) -> None:
         if self.is_debug:
-            self.__print_with_timestamp("Debug: {}".format(string))
+            self.__print_with_timestamp(f"Debug: {string}")
 
     def print_very_verbose(self, string: str) -> None:
         if self.is_very_verbose:
@@ -94,6 +99,7 @@ class Options:
                             dest="wait_on_shutdown", action="store_true")
         parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=None,
                             choices=range(1, 4))
+        parser.add_argument("-l", "--log-file", help="Output log file", type=str, default=None, dest="log_file")
 
         return parser
 
@@ -106,6 +112,7 @@ class Options:
         self.__usb_version = config['usb-version'] if 'usb-version' in config else 3
         self.__hubs = config['hubs'] if 'hubs' in config else []
         self.__specific_devices = config['devices'] if 'devices' in config else []
+        self.__log_file = config['log-file'] if 'log-file' in config else Nones
 
     def __init__(self, args: List[str]):
         self.__wrapper_name = os.environ.get("WRAPPER") or args[0]
@@ -126,6 +133,7 @@ class Options:
             self.__specific_devices.extend(parsed.specific_device)
         self.__wait_on_shutdown = parsed.wait_on_shutdown if parsed.wait_on_shutdown else self.__wait_on_shutdown
         self.__usb_version = parsed.usb_version or self.__usb_version
+        self.__log_file = parsed.log_file or self.__log_file
 
         if self.__domain is None:
             parser.error("Must specify the domain to watch")
@@ -133,17 +141,20 @@ class Options:
         if len(self.__hubs) == 0 and len(self.__specific_devices) == 0:
             parser.error("Must specify at least one --hub or --specific-device")
 
-        self.print_debug("Program name: {}".format(self.__wrapper_name))
+        self.__log_output = open(self.__log_file, "a") if self.__log_file else sys.stdout
+
+        self.print_debug(f"Program name: {self.__wrapper_name}"
         self.print_unless_quiet("Settings:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
                                                        "Quiet" if self.is_quiet else "Normal"))
-        self.print_unless_quiet("Domain: {}".format(self.domain))
-        self.print_unless_quiet("Hubs: {}".format(self.hubs))
-        self.print_unless_quiet("No Wait: {}".format(self.no_wait))
-        self.print_unless_quiet("Specific Devices: {}".format(self.specific_devices))
-        self.print_unless_quiet("Wait on Shutdown: {}".format(self.wait_on_shutdown))
-        self.print_unless_quiet("QMP socket: {}".format(self.qmp_socket))
+        self.print_unless_quiet(f"Domain: {self.domain}")
+        self.print_unless_quiet(f"Hubs: {self.hubs}")
+        self.print_unless_quiet(f"No Wait: {self.no_wait}")
+        self.print_unless_quiet(f"Specific Devices: {self.specific_devices}")
+        self.print_unless_quiet(f"Wait on Shutdown: {self.wait_on_shutdown}")
+        self.print_unless_quiet(f"QMP socket: {self.qmp_socket}")
+        self.print_unless_quiet(f"Log file: {self.log_file}")
 
     def __repr__(self):
-        return "Options({!r})".format(self.__args)
+        return f"Options({self.__args!r})"

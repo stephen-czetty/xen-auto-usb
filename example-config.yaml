@@ -5,6 +5,7 @@ qmp-socket: /run/xen/qmp-usb-Windows      # QMP socket (see README.md)
 usb-version: 3                            # USB version (defaults to 3 if not specified)
 wait-on-shutdown: false                   # Wait for a new domain on domain shutdown (defaults to false)
 wait-for-domain: true                     # Wait for the domain to start (defaults to true)
+log-file: /var/log/usb-monitor            # Log file
 hubs:                                     # List of hubs to monitor
   - usb3
   - usb4
