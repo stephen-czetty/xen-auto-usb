@@ -143,7 +143,7 @@ class Options:
 
         self.__log_output = open(self.__log_file, "a") if self.__log_file else sys.stdout
 
-        self.print_debug(f"Program name: {self.__wrapper_name}"
+        self.print_debug(f"Program name: {self.__wrapper_name}")
         self.print_unless_quiet("Settings:")
         self.print_unless_quiet("Verbosity: {}".format("Very Verbose" if self.is_very_verbose else
                                                        "Verbose" if self.is_verbose else
