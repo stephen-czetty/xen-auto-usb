@@ -36,22 +36,15 @@ class DeviceMonitor:
 
         return False
 
-    async def __attach_device(self, device: Device) -> Dict[str, XenUsb]:
+    async def __attach_device(self, device: Device) -> None:
         dev_map = await self.__domain.find_device_mapping(device.sys_name)
         if dev_map is None:
-            dev_map = await self.__domain.attach_device_to_xen(device)
-        if dev_map is not None:
-            return {device.sys_name: dev_map}
+            await self.device_added.fire(device)
 
-        return {}
-
-    async def __get_connected_devices(self, hub_device: Device) -> Dict[str, XenUsb]:
-        device_map = {}
+    async def __get_connected_devices(self, hub_device: Device) -> None:
         for device in self.__devices_of_interest(hub_device):
             self.__options.print_verbose("Found at startup: {0.device_path}".format(device))
-            device_map.update(await self.__attach_device(device))
-
-        return device_map
+            await self.__attach_device(device)
 
     def __find_devices(self, vendor_id: str, product_id: str) -> Iterable[Device]:
         for dev_file in glob("{}/*".format(SYSFS_ROOT)):
@@ -65,13 +58,13 @@ class DeviceMonitor:
             if dev.vendor_id == vendor_id and dev.product_id == product_id:
                 yield dev
 
-    async def __add_hub(self, device: Device) -> Dict[str, XenUsb]:
+    async def __add_hub(self, device: Device) -> None:
         if device not in self.__root_devices:
             self.__root_devices.append(device)
 
         return await self.__get_connected_devices(device)
 
-    async def add_hub(self, device_name: str) -> Dict[str, XenUsb]:
+    async def add_hub(self, device_name: str) -> None:
         inner = pyudev.Devices.from_path(self.__context, "{0}/{1}".format(SYSFS_ROOT, device_name))
 
         dev = Device(inner)
@@ -82,11 +75,10 @@ class DeviceMonitor:
 
         return await self.__add_hub(dev)
 
-    async def add_specific_device(self, device_id: str) -> Dict[str, XenUsb]:
-        ret = {}
+    async def add_specific_device(self, device_id: str) -> None:
         vendor_id, product_id = device_id.split(":")
         if (vendor_id, product_id) in self.__specific_devices:
-            return ret
+            return
 
         if vendor_id is None or product_id is None:
             raise RuntimeError("Device {} is not formatted properly. (Should be <vendor_id>:<product_id>)")
@@ -96,10 +88,9 @@ class DeviceMonitor:
             self.__options.print_debug("Found device: {!r}".format(dev))
             if dev.is_a_hub():
                 return await self.__add_hub(dev)
-            ret.update(await self.__attach_device(dev))
+            await self.__attach_device(dev)
 
         self.__specific_devices.append((vendor_id, product_id))
-        return ret
 
     def shutdown(self):
         self.__shutdown = True

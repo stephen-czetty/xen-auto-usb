@@ -105,9 +105,9 @@ class MainThread:
                     try:
                         with (await self.__device_map_lock):
                             for h in self.__options.hubs:
-                                self.__device_map.update(await monitor.add_hub(h))
+                                await monitor.add_hub(h)
                             for d in self.__options.specific_devices:
-                                self.__device_map.update(await monitor.add_specific_device(d))
+                                await monitor.add_specific_device(d)
                             await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
                             break
                     except PyXSError:
