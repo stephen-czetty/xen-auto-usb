@@ -103,8 +103,8 @@ class Options:
         parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=None,
                             choices=range(1, 4))
         parser.add_argument("-l", "--log-file", help="Output log file", type=str, default=None, dest="log_file")
-        parser.add_argument("--no-daemon", help="Do not run as a daemon (run in foreground", type=bool, default=False,
-                            dest="no_daemon")
+        parser.add_argument("--no-daemon", help="Do not run as a daemon (run in foreground", type=bool,
+                            dest="no_daemon", action="store_true")
 
         return parser
 
