@@ -131,7 +131,7 @@ class MainThread:
                     return
 
         try:
-            if self.__options.no_daemon:
+            if self.__options.no_daemon or not self.__options.log_file:
                 self.__execute(usb_monitor, qmp)
             with daemon.DaemonContext():
                self.__execute(usb_monitor, qmp)

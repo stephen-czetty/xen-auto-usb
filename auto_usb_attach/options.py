@@ -65,6 +65,7 @@ class Options:
 
     def __print_with_timestamp(self, string: str) -> None:
         self.__log_output.write(f"[{datetime.now():%a %b %d %H:%M:%S %Y}] {string}\n")
+        self.__log_output.flush()
 
     def print_debug(self, string: str) -> None:
         if self.is_debug:
