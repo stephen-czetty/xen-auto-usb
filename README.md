@@ -131,6 +131,7 @@ required to get everything up and running:
 * Qmp.__get_usb_devices could probably cache its data
 * Watch for a CD insert
 * Rotate log file
+* Option to prevent controller creation
 
 #### 1.5 ####
 
