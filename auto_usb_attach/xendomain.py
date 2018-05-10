@@ -2,8 +2,8 @@ import asyncio
 from functools import partial
 from typing import Tuple, Optional, Callable, Iterable, List
 from collections import AsyncIterable
-import pyxs
 import re
+import pyxs
 
 from .device import Device
 from .options import Options

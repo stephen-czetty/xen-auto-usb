@@ -2,8 +2,8 @@ from typing import List, Optional
 import argparse
 from datetime import datetime
 import os
-import yaml
 import sys
+import yaml
 
 
 class Options:
@@ -59,6 +59,10 @@ class Options:
     def log_file(self) -> str:
         return self.__log_file
 
+    @property
+    def no_daemon(self) -> bool:
+        return self.__no_daemon
+
     def __print_with_timestamp(self, string: str) -> None:
         self.__log_output.write(f"[{datetime.now():%a %b %d %H:%M:%S %Y}] {string}\n")
 
@@ -99,6 +103,8 @@ class Options:
         parser.add_argument("--usb-version", help="USB Controller version (defaults to 3)", type=int, default=None,
                             choices=range(1, 4))
         parser.add_argument("-l", "--log-file", help="Output log file", type=str, default=None, dest="log_file")
+        parser.add_argument("--no-daemon", help="Do not run as a daemon (run in foreground", type=bool, default=False,
+                            dest="no_daemon")
 
         return parser
 
@@ -112,6 +118,7 @@ class Options:
         self.__hubs = config['hubs'] if 'hubs' in config else []
         self.__specific_devices = config['devices'] if 'devices' in config else []
         self.__log_file = config['log-file'] if 'log-file' in config else None
+        self.__no_daemon = config['no-daemon'] if 'no-daemon' in config else False
 
     def __init__(self, args: List[str]):
         self.__wrapper_name = os.environ.get("WRAPPER") or args[0]
@@ -133,6 +140,7 @@ class Options:
         self.__wait_on_shutdown = parsed.wait_on_shutdown if parsed.wait_on_shutdown else self.__wait_on_shutdown
         self.__usb_version = parsed.usb_version or self.__usb_version
         self.__log_file = parsed.log_file or self.__log_file
+        self.__no_daemon = parsed.no_daemon or self.__no_daemon
 
         if self.__domain is None:
             parser.error("Must specify the domain to watch")
@@ -154,6 +162,7 @@ class Options:
         self.print_unless_quiet(f"Wait on Shutdown: {self.wait_on_shutdown}")
         self.print_unless_quiet(f"QMP socket: {self.qmp_socket}")
         self.print_unless_quiet(f"Log file: {self.log_file}")
+        self.print_unless_quiet(f"No daemon: {self.no_daemon}")
 
     def __repr__(self):
         return f"Options({self.__args!r})"

@@ -2,11 +2,11 @@
 
 import sys
 from functools import partial
-from typing import List, Dict
+from typing import List, Dict, Callable
 import os
 import asyncio
-
 import psutil
+import daemon
 from pyxs import PyXSError
 
 from auto_usb_attach.qmp import Qmp
@@ -15,6 +15,12 @@ from .xendomain import XenDomain, XenError
 from .devicemonitor import DeviceMonitor
 from .device import Device
 from .xenusb import XenUsb
+
+# Remove pylint warnings on Windows (just here for my development)
+if not callable(getattr(os, 'getuid')):
+    os.getuid = lambda: 0
+    os.setreuid = lambda x, y: False
+    os.geteuid = lambda: 0
 
 
 class MainThread:
@@ -49,8 +55,8 @@ class MainThread:
         self.__options.print_unless_quiet("Restarting.")
 
         # Adapted from https://stackoverflow.com/a/33334183
-        p = psutil.Process(os.getpid())
-        for handler in p.open_files() + p.connections():
+        proc = psutil.Process(os.getpid())
+        for handler in proc.open_files() + proc.connections():
             os.close(handler.fd)
 
         os.execl(self.__options.wrapper_name, *sys.argv)
@@ -104,10 +110,10 @@ class MainThread:
                 while True:
                     try:
                         with (await self.__device_map_lock):
-                            for h in self.__options.hubs:
-                                self.__device_map.update(await monitor.add_hub(h))
-                            for d in self.__options.specific_devices:
-                                self.__device_map.update(await monitor.add_specific_device(d))
+                            for hub in self.__options.hubs:
+                                self.__device_map.update(await monitor.add_hub(hub))
+                            for dev in self.__options.specific_devices:
+                                self.__device_map.update(await monitor.add_specific_device(dev))
                             await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
                             break
                     except PyXSError:
@@ -120,9 +126,10 @@ class MainThread:
                     return
 
         try:
-            if self.__options.qmp_socket is not None:
-                asyncio.ensure_future(qmp.monitor_domain())
-            self.__event_loop.run_until_complete(usb_monitor())
+            with daemon.DaemonContext(detach_process=not self.__options.no_daemon):
+                if self.__options.qmp_socket is not None:
+                    asyncio.ensure_future(qmp.monitor_domain())
+                self.__event_loop.run_until_complete(usb_monitor())
         except KeyboardInterrupt:
             pass
 

@@ -6,6 +6,7 @@ usb-version: 3                            # USB version (defaults to 3 if not sp
 wait-on-shutdown: false                   # Wait for a new domain on domain shutdown (defaults to false)
 wait-for-domain: true                     # Wait for the domain to start (defaults to true)
 log-file: /var/log/usb-monitor            # Log file
+no-daemon: true                           # Don't disconnect from console
 hubs:                                     # List of hubs to monitor
   - usb3
   - usb4
