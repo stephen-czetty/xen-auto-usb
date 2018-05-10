@@ -146,6 +146,9 @@ class MainThread:
             self.__options.print_unless_quiet("Exiting...")
         except KeyboardInterrupt:
             pass
+        except Exception as ex:
+            self.__options.print_debug(ex)
+            raise
 
     def __init__(self, args):
         super().__init__()
