@@ -99,7 +99,8 @@ class MainThread:
                     return
 
                 if self.__options.qmp_socket is None:
-                    qmp.set_socket_path("/run/xen/qmp-libxl-{}".format(xen_domain.domain_id))
+                    self.__options.print_debug("Connecting to QMP")
+                    qmp.set_socket_path(f"/run/xen/qmp-libxl-{xen_domain.domain_id}")
                 else:
                     await qmp.is_connected.wait()
 

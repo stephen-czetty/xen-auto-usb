@@ -114,13 +114,14 @@ class XenDomain:
     async def wait_for_domain(opts: Options, qmp: Qmp) -> "XenDomain":
         while True:
             try:
+                opts.print_debug(f"Trying to find Xen domain {opts.domain}")
                 return XenDomain(opts, qmp)
             except NameError:
                 if opts.no_wait:
-                    opts.print_unless_quiet("Could not find domain {}, exiting.".format(opts.domain))
+                    opts.print_unless_quiet(f"Could not find domain {opts.domain}, exiting.")
                     return XenDomain(None, qmp)
 
-                opts.print_unless_quiet("Could not find domain {}, waiting 5 seconds...".format(opts.domain))
+                opts.print_unless_quiet(f"Could not find domain {opts.domain}, waiting 5 seconds...")
                 await asyncio.sleep(5.0)
 
     async def attach_device_to_xen(self, dev: Device) -> XenUsb:
