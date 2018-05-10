@@ -96,6 +96,7 @@ class MainThread:
 
         async def usb_monitor() -> None:
             try:
+                self.__options.print_debug("Inside event loop")
                 with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
                     if xen_domain is None:
                         self.__options.print_debug("No domain found, exiting event loop")
