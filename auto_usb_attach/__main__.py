@@ -126,15 +126,15 @@ class MainThread:
                                 break
                         except PyXSError:
                             await asyncio.sleep(1.0)
-                except Exception as ex:
-                    self.__options.print_unless_quiet(ex)
-                    raise
+            except Exception as ex:
+                self.__options.print_unless_quiet(ex)
+                raise
 
-                try:
-                    await monitor.monitor_devices()
-                    return
-                except KeyboardInterrupt:
-                    return
+            try:
+                await monitor.monitor_devices()
+                return
+            except KeyboardInterrupt:
+                return
 
         try:
             if self.__options.no_daemon or not self.__options.log_file:
