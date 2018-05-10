@@ -98,6 +98,7 @@ class MainThread:
             try:
                 with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
                     if xen_domain is None:
+                        self.__options.print_debug("No domain found, exiting event loop")
                         return
 
                     if self.__options.qmp_socket is None:
