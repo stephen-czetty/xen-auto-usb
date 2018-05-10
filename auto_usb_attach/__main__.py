@@ -95,36 +95,40 @@ class MainThread:
         qmp = Qmp(self.__options)
 
         async def usb_monitor() -> None:
-            with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
-                if xen_domain is None:
-                    return
+            try:
+                with await XenDomain.wait_for_domain(self.__options, qmp) as xen_domain:
+                    if xen_domain is None:
+                        return
 
-                if self.__options.qmp_socket is None:
-                    self.__options.print_debug("Connecting to QMP")
-                    qmp.set_socket_path(f"/run/xen/qmp-libxl-{xen_domain.domain_id}")
-                else:
-                    await qmp.is_connected.wait()
+                    if self.__options.qmp_socket is None:
+                        self.__options.print_debug("Connecting to QMP")
+                        qmp.set_socket_path(f"/run/xen/qmp-libxl-{xen_domain.domain_id}")
+                    else:
+                        await qmp.is_connected.wait()
 
-                monitor = DeviceMonitor(self.__options, xen_domain)
-                monitor.device_added += partial(self.__add_device, xen_domain)
-                monitor.device_removed += partial(self.__remove_device, xen_domain)
-                qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
-                qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
+                    monitor = DeviceMonitor(self.__options, xen_domain)
+                    monitor.device_added += partial(self.__add_device, xen_domain)
+                    monitor.device_removed += partial(self.__remove_device, xen_domain)
+                    qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
+                    qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
 
-                if self.__options.qmp_socket is not None:
-                    self.__drop_privileges()
+                    if self.__options.qmp_socket is not None:
+                        self.__drop_privileges()
 
-                while True:
-                    try:
-                        with (await self.__device_map_lock):
-                            for hub in self.__options.hubs:
-                                self.__device_map.update(await monitor.add_hub(hub))
-                            for dev in self.__options.specific_devices:
-                                self.__device_map.update(await monitor.add_specific_device(dev))
-                            await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
-                            break
-                    except PyXSError:
-                        await asyncio.sleep(1.0)
+                    while True:
+                        try:
+                            with (await self.__device_map_lock):
+                                for hub in self.__options.hubs:
+                                    self.__device_map.update(await monitor.add_hub(hub))
+                                for dev in self.__options.specific_devices:
+                                    self.__device_map.update(await monitor.add_specific_device(dev))
+                                await self.__remove_disconnected_devices(xen_domain, list(self.__device_map.values()))
+                                break
+                        except PyXSError:
+                            await asyncio.sleep(1.0)
+                except Exception as ex:
+                    self.__options.print_unless_quiet(ex)
+                    raise
 
                 try:
                     await monitor.monitor_devices()

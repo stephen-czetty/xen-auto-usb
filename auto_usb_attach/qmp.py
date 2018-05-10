@@ -254,6 +254,7 @@ class Qmp:
                     yield usb_dev
 
     async def monitor_domain(self) -> None:
+        self.__options.print_debug("Monitoring QMP")
         if self.__options.qmp_socket is None:
             raise QmpError({"error": "Cannot monitor domain without a dedicated UNIX socket"})
 
