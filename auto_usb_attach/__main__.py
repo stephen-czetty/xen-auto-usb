@@ -133,7 +133,7 @@ class MainThread:
         try:
             if self.__options.no_daemon or not self.__options.log_file:
                 self.__execute(usb_monitor, qmp)
-            with daemon.DaemonContext():
+            with daemon.DaemonContext(files_preserve=[self.__options.log_file_handle]):
                self.__execute(usb_monitor, qmp)
         except KeyboardInterrupt:
             pass

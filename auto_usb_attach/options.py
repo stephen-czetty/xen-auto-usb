@@ -60,6 +60,10 @@ class Options:
         return self.__log_file
 
     @property
+    def log_file_handle(self):
+        return self.__log_output
+
+    @property
     def no_daemon(self) -> bool:
         return self.__no_daemon
 
