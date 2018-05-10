@@ -86,6 +86,7 @@ class MainThread:
                 await domain.detach_device_from_xen(dev)
 
     def __execute(self, usb_monitor: Callable, qmp: Qmp):
+        self.__options.print_debug("Starting event loop")
         if self.__options.qmp_socket is not None:
             asyncio.ensure_future(qmp.monitor_domain())
         self.__event_loop.run_until_complete(usb_monitor())
@@ -135,7 +136,7 @@ class MainThread:
             if self.__options.no_daemon or not self.__options.log_file:
                 self.__execute(usb_monitor, qmp)
             with daemon.DaemonContext(files_preserve=[self.__options.log_file_handle]):
-               self.__execute(usb_monitor, qmp)
+                self.__execute(usb_monitor, qmp)
         except KeyboardInterrupt:
             pass
 
