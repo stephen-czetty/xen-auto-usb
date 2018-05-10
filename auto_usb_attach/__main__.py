@@ -143,6 +143,7 @@ class MainThread:
                 self.__execute(usb_monitor, qmp)
             with daemon.DaemonContext(files_preserve=[self.__options.log_file_handle], uid=0):
                 self.__execute(usb_monitor, qmp)
+            self.__options.print_unless_quiet("Exiting...")
         except KeyboardInterrupt:
             pass
 
