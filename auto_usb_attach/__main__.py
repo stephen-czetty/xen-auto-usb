@@ -24,24 +24,24 @@ if not callable(getattr(os, 'getuid')):
 
 
 class MainThread:
-    async def __add_device(self, domain: XenDomain, device: Device) -> None:
+    async def __add_device(self, domain: XenDomain, device_map_lock: asyncio.Lock, device: Device) -> None:
         self.__options.print_debug("add_device event fired: {}".format(device))
         if device.sys_name not in self.__device_map:
             self.__options.print_verbose("Device added: {}".format(device.device_path))
 
             try:
                 dev_map = await domain.attach_device_to_xen(device)
-                with (await self.__device_map_lock):
+                with (await device_map_lock):
                     self.__device_map[device.sys_name] = dev_map
             except XenError:
                 pass
 
-    async def __remove_device(self, domain: XenDomain, device: Device) -> None:
+    async def __remove_device(self, domain: XenDomain, device_map_lock: asyncio.Lock, device: Device) -> None:
         self.__options.print_debug("remove_device event fired: {}".format(device))
         if device.sys_name in self.__device_map:
             self.__options.print_verbose("Removing device: {}".format(device.device_path))
             if await domain.detach_device_from_xen(self.__device_map[device.sys_name]):
-                with (await self.__device_map_lock):
+                with (await device_map_lock):
                     del self.__device_map[device.sys_name]
 
     async def __restart_program(self):
@@ -109,9 +109,11 @@ class MainThread:
                     else:
                         await qmp.is_connected.wait()
 
+                    device_map_lock = asyncio.Lock()
+
                     monitor = DeviceMonitor(self.__options, xen_domain)
-                    monitor.device_added += partial(self.__add_device, xen_domain)
-                    monitor.device_removed += partial(self.__remove_device, xen_domain)
+                    monitor.device_added += partial(self.__add_device, xen_domain, device_map_lock)
+                    monitor.device_removed += partial(self.__remove_device, xen_domain, device_map_lock)
                     qmp.domain_reboot += partial(self.__domain_reboot, xen_domain, monitor)
                     qmp.domain_shutdown += partial(self.__domain_shutdown, xen_domain, monitor)
 
@@ -120,7 +122,7 @@ class MainThread:
 
                     while True:
                         try:
-                            with (await self.__device_map_lock):
+                            with (await device_map_lock):
                                 for hub in self.__options.hubs:
                                     self.__device_map.update(await monitor.add_hub(hub))
                                 for dev in self.__options.specific_devices:
@@ -155,7 +157,6 @@ class MainThread:
         self.__args = args
         self.__options = Options(args)
         self.__device_map: Dict[str, XenUsb] = {}
-        self.__device_map_lock = asyncio.Lock()
 
     def __repr__(self):
         return "MainThread({!r})".format(self.__args)
