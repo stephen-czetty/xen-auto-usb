@@ -153,7 +153,7 @@ class Options:
         if len(self.__hubs) == 0 and len(self.__specific_devices) == 0:
             parser.error("Must specify at least one --hub or --specific-device")
 
-        self.__log_output = open(self.__log_file, "a") if self.__log_file else sys.stdout
+        self.__log_output = open(self.__log_file, "a") if self.__log_file and self.__no_daemon else sys.stdout
 
         self.print_debug(f"Program name: {self.__wrapper_name}")
         self.print_unless_quiet("Settings:")
