@@ -148,6 +148,7 @@ class QmpSocket:
 # 4) libxl rebinds the device to the driver, but since it has been removed, we won't need to do that.
 class Qmp:
     def __get_qmp_socket(self) -> QmpSocket:
+        self.__connected_event = self.__connected_event or asyncio.Event()
         self.__qmp_socket = self.__qmp_socket or \
                             QmpSocket(self.__options, self.__path, self.__options.qmp_socket is not None,
                                       self.domain_reboot,
@@ -283,7 +284,7 @@ class Qmp:
         self.__options = options
         self.__path = self.__options.qmp_socket
         self.__qmp_socket = None
-        self.__connected_event = asyncio.Event()
+        self.__connected_event = None
 
         self.domain_reboot = AsyncEvent()
         self.domain_shutdown = AsyncEvent()
