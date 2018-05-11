@@ -87,10 +87,11 @@ class MainThread:
                 await domain.detach_device_from_xen(dev)
 
     def __execute(self, usb_monitor: Callable, qmp: Qmp):
+        event_loop = asyncio.get_event_loop()
         self.__options.print_debug("Starting event loop")
         if self.__options.qmp_socket is not None:
             asyncio.ensure_future(qmp.monitor_domain())
-        self.__event_loop.run_until_complete(usb_monitor())
+        event_loop.run_until_complete(usb_monitor())
 
     def run(self) -> None:
         qmp = Qmp(self.__options)
@@ -150,9 +151,9 @@ class MainThread:
         except KeyboardInterrupt:
             pass
         except Exception as ex:
-            (type, value, tb) = sys.exc_info()
+            trace_back = sys.exc_info()[2]
             self.__options.print_debug(f"Exception: {ex}")
-            traceback.print_tb(tb, file=self.__options.log_file_handle)
+            traceback.print_tb(trace_back, file=self.__options.log_file_handle)
             raise
 
     def __init__(self, args):
@@ -161,7 +162,6 @@ class MainThread:
         self.__options = Options(args)
         self.__device_map: Dict[str, XenUsb] = {}
         self.__device_map_lock = asyncio.Lock()
-        self.__event_loop = asyncio.get_event_loop()
 
     def __repr__(self):
         return "MainThread({!r})".format(self.__args)
