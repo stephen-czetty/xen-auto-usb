@@ -8,7 +8,6 @@ import asyncio
 import psutil
 import daemon
 from pyxs import PyXSError
-import traceback
 
 from auto_usb_attach.qmp import Qmp
 from .options import Options
@@ -150,11 +149,6 @@ class MainThread:
             self.__options.print_unless_quiet("Exiting...")
         except KeyboardInterrupt:
             pass
-        except Exception as ex:
-            trace_back = sys.exc_info()[2]
-            self.__options.print_debug(f"Exception: {ex}")
-            traceback.print_tb(trace_back, file=self.__options.log_file_handle)
-            raise
 
     def __init__(self, args):
         super().__init__()
