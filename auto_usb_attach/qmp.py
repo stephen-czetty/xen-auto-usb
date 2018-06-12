@@ -56,7 +56,7 @@ class QmpSocket:
 
     async def __receive_line(self) -> Optional[Dict[str, Any]]:
         data = await self.__reader.readline()
-        if len(data) == 0:
+        if data:
             return None
         data = str(data, "utf-8")
         self.__options.print_debug(data)
@@ -211,8 +211,7 @@ class Qmp:
                                                     "bus": "xenusb-{}.0".format(controller),
                                                     "port": str(port),
                                                     "hostbus": str(busnum),
-                                                    "hostaddr": str(devnum)}
-                                                   )
+                                                    "hostaddr": str(devnum)})
             if "error" in result:
                 raise QmpError(result["error"])
 
@@ -242,9 +241,9 @@ class Qmp:
             if controller_devices is None:
                 return None
 
-            async for u in self.__get_usb_devices(sock, controller):
-                if u.port == port:
-                    return u
+            async for usb_device in self.__get_usb_devices(sock, controller):
+                if usb_device.port == port:
+                    return usb_device
             # return anext((u async for u in self.__get_usb_devices(sock, controller) if u.port == port), None)
             return None
 
@@ -316,27 +315,6 @@ class QmpError(Exception):
         return "{}: {}".format(self.__error_class, self.__message)
 
     def __init__(self, error: Dict[str, str]):
+        super().__init__()
         self.__error_class = error["class"]
         self.__message = error["desc"]
-
-# QMP commands to look at that might get us the missing information for devices already attached at startup.
-# {"execute": "qom-list", "arguments":{"path": "peripheral"}}
-# {"return": [{"name": "xenusb-4-5", "type": "child<usb-host>"}, {"name": "xenusb-0", "type": "child<nec-usb-xhci>"}, ...]}
-# {"execute": "qom-list", "arguments":{"path": "xenusb-0"}}
-# {"return": [{"name": "xenusb-0.0", "type": "child<usb-bus>"},...]
-# {"execute": "qom-list", "arguments": {"path": "xenusb-0.0"}}
-# {"return": [{"name": "child[15]", "type": "link<usb-host>"}, {"name": "child[14]", "type": "link<usb-host>"}, ...]}
-# {"execute": "qom-get", "arguments": {"path": "xenusb-0.0", "property": "child[15]"}}
-# {"return": "/machine/peripheral/xenusb-4-3"}
-# {"execute": "qom-list", "arguments": {"path": "/machine/peripheral/xenusb-4-3"}}
-# {"return": [{"name": "hostaddr", "type": "uint32"}, {"name": "parent_bus", "type": "link<bus>"}, {"name": "port", "type": "str"}, {"name": "hostbus", "type": "uint32"}, ...]}
-# {"execute": "qom-get", "arguments":{"path": "xenusb-4-3", "property": "port"}}
-# {"return": "2"}
-# {"execute": "qom-get", "arguments": {"path": "xenusb-4-3", "property": "hostbus"}}
-# {"return": 4}
-# {"execute": "qom-get", "arguments":{"path": "xenusb-3-4", "property": "parent_bus"}}
-# {"return": "/machine/peripheral/xenusb-0/xenusb-0.0"}
-
-# For adding a chardev at runtime:
-# {"execute": "chardev-add", "arguments": {"id": "test", "backend": {"type": "socket", "data": { "addr": {"data": {"path": "/var/run/xen/qmp-test"}, "type": "unix"}}, "server": true, "wait": false}}}
-# I don't (yet) see a way to tell qmp to put this chardev into "mode=control" as done on the commandline.

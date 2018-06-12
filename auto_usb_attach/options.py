@@ -150,7 +150,7 @@ class Options:
         if self.__domain is None:
             parser.error("Must specify the domain to watch")
 
-        if len(self.__hubs) == 0 and len(self.__specific_devices) == 0:
+        if self.__hubs and not self.__specific_devices:
             parser.error("Must specify at least one --hub or --specific-device")
 
         self.__log_output = open(self.__log_file, "a") if self.__log_file else sys.stdout

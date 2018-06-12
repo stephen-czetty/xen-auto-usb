@@ -34,4 +34,3 @@ class PriorityDict:
 
     def __ge__(self, other):
         return self.priority >= other.priority
-
