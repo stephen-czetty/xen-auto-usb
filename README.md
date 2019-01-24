@@ -126,6 +126,8 @@ required to get everything up and running:
 * Add unit tests!
 * DeviceMonitor.__is_a_device_we_care_about() does not belong there; it
   should probably move to MainThread
+* The verbose output is inconsistent:
+  * Output for selecting a controller/device, but nothing for devices added/remove
 
 ### Future Roadmap ###
 
