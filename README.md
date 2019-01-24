@@ -116,6 +116,9 @@ required to get everything up and running:
 
 ### Still TODO for 1.0 ###
 
+* Race condition in startup, especially after a reboot
+  * The controller can be created before configured PCI devices,
+    possibly causing a statically configured PCI slot to be used.
 * Expand setup.py to do a full installation
   * Including a build of the wrapper, setting up
     setuid bit, symlinks, etc.
